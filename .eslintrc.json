@@ -15,15 +15,6 @@
         "@typescript-eslint"
     ],
     "indent": ["error", 4],
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "target": "es6",
-    "declaration": true,
-    "noImplicitAny": false,
-    "removeComments": true,
-    "esModuleInterop": true,
-    "noLib": false,
-    "preserveConstEnums": true,
     "rules": {
     },
     "include": ["lib/**/*.ts"]

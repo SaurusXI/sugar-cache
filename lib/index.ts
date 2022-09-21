@@ -2,12 +2,13 @@
  * @author Shantanu Verma (github.com/SaurusXI)
  */
 
-import IORedis from "ioredis";
+import Redis from "ioredis";
 import { EvictionScheme, RedisConstants, RedisExpiryModes } from "./constants";
 import { CacheOptions } from "./types";
+import readFunctionParams from '@captemulation/get-parameter-names';
 
-export default class RedisCache {
-    private redis: IORedis.Redis;
+export default class SugarCache {
+    private redis: Redis;
 
     private namespace: string;
 
@@ -20,19 +21,21 @@ export default class RedisCache {
 
     private maxWidth: number;
 
-    constructor(redis: IORedis.Redis, options: CacheOptions) {
+    constructor(redis: Redis, options: CacheOptions) {
         const { namespace, scheme, ttl, width } = options;
 
         this.redis = redis;
 
-        this.namespace = `redis-cache:${namespace || 'default'}`;
+        this.namespace = `sugar-cache:${namespace || 'default'}`;
         this.evictionScheme = scheme || EvictionScheme.LRU;
         this.ttl = ttl;
 
-        if (width < 1) throw new Error('[RedisCache] Cache width needs to be >= 1');
+        if (width < 1) throw new Error('[SugarCache] Cache width needs to be >= 1');
         this.maxWidth = width;
     
         this.scoreSetKey = `${this.namespace}:scoreSet`;
+
+        // (async () => { await this.reset() })();
 
         // If cache entries have a TTL remove expired entries from scoreSet every 1 minute
         if (this.ttl) setTimeout(this.clearExpiredEntries, 60000);
@@ -48,7 +51,7 @@ export default class RedisCache {
                 return -1 * (new Date().getTime());
             }
             default: {
-                throw new Error(`[RedisCache] Cache scheme ${this.evictionScheme} not supported`);
+                throw new Error(`[SugarCache] Cache scheme ${this.evictionScheme} not supported`);
             }
         }
     };
@@ -58,9 +61,23 @@ export default class RedisCache {
 
         const largestValidScore = -1 * ((new Date().getTime()) - this.ttl);
         return this.redis.zremrangebyscore(this.scoreSetKey, largestValidScore, RedisConstants.Max)
-            .catch((err) => { throw new Error(`[RedisCache] Could not clear expired cache entries - ${err}`) });
+            .catch((err) => { throw new Error(`[SugarCache] Could not clear expired cache entries - ${err}`) });
     }
 
+    private static validateKeys = (targetFn: any, cacheKeys: string[]) => {
+        const params = readFunctionParams(targetFn);
+        const invalidKeys = cacheKeys.filter(k => !params.includes(k));
+        if (invalidKeys.length) throw new Error('[SugarCache] Keys passed to decorator do not match function params');
+    }
+
+    private static transformIntoNamedArgs = (args: IArguments, targetFn: any) => {
+        const params = readFunctionParams(targetFn);
+        let namedArguments = {};
+        Array.from(args).forEach((arg, idx) => {
+            namedArguments[params[idx]] = arg;
+        });
+        return namedArguments;
+    } 
 
     // ----------- Public API Methods -----------
 
@@ -75,7 +92,7 @@ export default class RedisCache {
 
         const result = await this.redisTransaction()
             // fetch value
-            .get(key)
+            .get(cacheKey)
             // update its score in the score set
             .zadd(this.scoreSetKey, score, cacheKey)
             .exec();
@@ -91,7 +108,7 @@ export default class RedisCache {
         }
         
         const [_, value] = result[0];
-        return JSON.parse(value);
+        return JSON.parse(value as string);
     }
 
     /**
@@ -103,10 +120,11 @@ export default class RedisCache {
         const cacheKey = this.transformIntoCacheKey(key);
         const score = this.getScore(cacheKey);
 
-        const expiryMode = this.ttl ? RedisExpiryModes.Milliseconds : undefined;
+        const setQueryParams = this.ttl ? [cacheKey, JSON.stringify(value), RedisExpiryModes.Milliseconds, this.ttl] : [cacheKey, JSON.stringify(value)];
         const result = await this.redisTransaction()
             // set value in cache
-            .set(key, JSON.stringify(value), expiryMode, this.ttl)
+            // @ts-ignore
+            .set(...setQueryParams)
             // add its score to scoreSet
             .zadd(this.scoreSetKey, score, cacheKey)
             // get all values overflowing the cache width
@@ -118,7 +136,7 @@ export default class RedisCache {
         });
 
         // If cache width is reached, evict extra values from cache
-        const deletionCandidateKeys: string[] = result[2][1];
+        const deletionCandidateKeys = result[2][1] as string[];
         if (deletionCandidateKeys.length > 0) {
             await this.redisTransaction()
                 .zrem(this.scoreSetKey, ...deletionCandidateKeys)
@@ -144,24 +162,40 @@ export default class RedisCache {
         });
     }
 
+    public reset = async () => {
+        const deletionCandidateKeys = await this.redis.zrange(this.scoreSetKey, 0, -1);
+        if (!deletionCandidateKeys.length) return;
+        await this.redisTransaction()
+            .zremrangebyscore(this.scoreSetKey, RedisConstants.Min, RedisConstants.Max)
+            .del(...deletionCandidateKeys)
+            .exec();
+    }
+
     // ----------- Decorator Methods -----------
 
     /**
-     * Decorator to read a value from cache if it exists, and set the value on cache if it doesn't
+     * Decorator to read a value from cache if it exists
+     * If it doesn't the target function is called and the return value is set on cache
      * @param keys Ordered list of identifiers for value in cache
      */
-    public async getOrSet(...keys: string[]) {
+    public getOrSet(keys: string[]) {
         const cacheInstance = this;
-        return function (target: Function, propertyKey: string, descriptor: TypedPropertyDescriptor<(... params: any[])=> Promise<any>>) {
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
             let originalFn = descriptor.value;
+
+            SugarCache.validateKeys(originalFn, keys);
+
             descriptor.value = async function () {
-                const cacheKey = keys.join(':');
+                const namedArguments = SugarCache.transformIntoNamedArgs(arguments, originalFn);
+                const cacheKeyArgs = keys.map(k => namedArguments[k]);
+                const cacheKey = cacheKeyArgs.join(':');
+
                 const cachedResult = await cacheInstance.get(cacheKey);
                 if (cachedResult) return cachedResult;
 
                 const result = await originalFn.apply(this, arguments);
                 cacheInstance.set(cacheKey, result)
-                    .catch((err) => { throw new Error(`[RedisCache] Unable to set value to cache - ${err}`) });
+                    .catch((err) => { throw new Error(`[SugarCache] Unable to set value to cache - ${err}`) });
 
                 return result;
             }
@@ -172,15 +206,22 @@ export default class RedisCache {
      * Decorator to remove value from cache
      * @param keys Ordered list of identifiers in cache
      */
-    public async invalidate(...keys: string[]) {
+    public invalidate(keys: string[]) {
         const cacheInstance = this;
-        return function (target: Function, propertyKey: string, descriptor: TypedPropertyDescriptor<(... params: any[])=> Promise<any>>) {
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
             let originalFn = descriptor.value;
+
+            SugarCache.validateKeys(originalFn, keys);
+
             descriptor.value = async function () {
-                const cacheKey = keys.join(':');
+                const namedArguments = SugarCache.transformIntoNamedArgs(arguments, originalFn);
+
+                const cacheKeyArgs = keys.map(k => namedArguments[k]);
+                const cacheKey = cacheKeyArgs.join(':');
+
                 const result = await originalFn.apply(this, arguments);
                 cacheInstance.del(cacheKey)
-                    .catch((err) => { throw new Error(`[RedisCache] Unable to delete value from cache - ${err}`)});
+                    .catch((err) => { throw new Error(`[SugarCache] Unable to delete value from cache - ${err}`)});
 
                 return result;
             }
