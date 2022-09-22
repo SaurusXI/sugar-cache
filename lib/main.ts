@@ -185,7 +185,7 @@ export class SugarCache {
      */
     public getOrSet(keys: string[]) {
         const cacheInstance = this;
-        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             let originalFn = descriptor.value.originalFn || descriptor.value;
 
             SugarCache.validateKeys(originalFn, keys);
@@ -214,7 +214,7 @@ export class SugarCache {
      */
     public invalidate(keys: string[]) {
         const cacheInstance = this;
-        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             let originalFn = descriptor.value.originalFn || descriptor.value;
 
             SugarCache.validateKeys(originalFn, keys);
