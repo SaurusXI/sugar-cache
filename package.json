@@ -22,7 +22,7 @@
     "typescript": "^4.8.3"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "test": "jest --runInBand"
   },
   "dependencies": {
@@ -39,10 +39,14 @@
   "license": "GPLV3",
   "keywords": [
     "redis",
+    "ioredis",
     "cache",
     "LRU"
   ],
-  "main": "dist/exports.js",
+  "main": "./dist/exports.js",
+  "files": [
+    "dist"
+  ],
   "release": {
     "branches": {
       "name": "main"
