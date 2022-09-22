@@ -2,7 +2,7 @@
 Cache library for Node.js built on top of ioredis. 
 
 ## Usage
-SugarCache exports a default class that instantiates a cache for you when constructed -
+SugarCache exports a class that instantiates a cache for you when constructed -
 ```javascript
 import { SugarCache } from 'sugar-cache';
 import Redis from 'ioredis';
@@ -50,7 +50,7 @@ Say you need to set cache on the results of a function invocation so that the ne
 @cache.getOrSet(['resourceId', 'parentResourceId'])
 async readResource(resourceId: string, parentResourceId: string, ...rest) { ... }
 ```
-- `invalidate`
+- `invalidate` -
 For when you need to invalidate a resource from cache. For instance, for the `readResource` function above, if we wish to delete the resource from cache whenever its changed from another function -
 ```typescript
 @cache.invalidate(['resourceId', 'parentResourceId'])
