@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import SugarCache from '../lib/main';
+import { SugarCache } from '../lib/main';
 
 
 describe('Functional tests', () => {

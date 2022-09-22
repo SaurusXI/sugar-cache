@@ -7,7 +7,7 @@ import { EvictionScheme, RedisConstants, RedisExpiryModes } from "./constants";
 import { CacheOptions } from "./types";
 import readFunctionParams from '@captemulation/get-parameter-names';
 
-export default class SugarCache {
+export class SugarCache {
     private redis: Redis;
 
     private namespace: string;
