@@ -35,10 +35,10 @@ export default class SugarCache {
     
         this.scoreSetKey = `${this.namespace}:scoreSet`;
 
-        // (async () => { await this.reset() })();
-
         // If cache entries have a TTL remove expired entries from scoreSet every 1 minute
-        if (this.ttl) setTimeout(this.clearExpiredEntries, 60000);
+        if (this.ttl) {
+            setTimeout(this.clearExpiredEntries, 60000);
+        }
     }
 
     private transformIntoCacheKey = (key: string) => `${this.namespace}:cache:${key}`; 
@@ -60,7 +60,7 @@ export default class SugarCache {
         if (!this.ttl) return;
 
         const largestValidScore = -1 * ((new Date().getTime()) - this.ttl);
-        return this.redis.zremrangebyscore(this.scoreSetKey, largestValidScore, RedisConstants.Max)
+        await this.redis.zremrangebyscore(this.scoreSetKey, largestValidScore, RedisConstants.Max)
             .catch((err) => { throw new Error(`[SugarCache] Could not clear expired cache entries - ${err}`) });
     }
 
@@ -138,6 +138,7 @@ export default class SugarCache {
         // If cache width is reached, evict extra values from cache
         const deletionCandidateKeys = result[2][1] as string[];
         if (deletionCandidateKeys.length > 0) {
+            console.log(`Deletion candidates - ${JSON.stringify(deletionCandidateKeys)}`);
             await this.redisTransaction()
                 .zrem(this.scoreSetKey, ...deletionCandidateKeys)
                 .del(...deletionCandidateKeys)
@@ -162,7 +163,11 @@ export default class SugarCache {
         });
     }
 
-    public reset = async () => {
+    /**
+     * Deletes all values in the cache
+     * Bear in mind that this will only remove values from redis that are under the namespace of the cache object
+     */
+    public clear = async () => {
         const deletionCandidateKeys = await this.redis.zrange(this.scoreSetKey, 0, -1);
         if (!deletionCandidateKeys.length) return;
         await this.redisTransaction()
@@ -181,7 +186,7 @@ export default class SugarCache {
     public getOrSet(keys: string[]) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-            let originalFn = descriptor.value;
+            let originalFn = descriptor.value.originalFn || descriptor.value;
 
             SugarCache.validateKeys(originalFn, keys);
 
@@ -191,14 +196,15 @@ export default class SugarCache {
                 const cacheKey = cacheKeyArgs.join(':');
 
                 const cachedResult = await cacheInstance.get(cacheKey);
-                if (cachedResult) return cachedResult;
+                if (cachedResult !== null) return cachedResult;
 
                 const result = await originalFn.apply(this, arguments);
                 cacheInstance.set(cacheKey, result)
                     .catch((err) => { throw new Error(`[SugarCache] Unable to set value to cache - ${err}`) });
 
                 return result;
-            }
+            };
+            descriptor.value.originalFn = originalFn;
         }
     }
 
@@ -209,7 +215,7 @@ export default class SugarCache {
     public invalidate(keys: string[]) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-            let originalFn = descriptor.value;
+            let originalFn = descriptor.value.originalFn || descriptor.value;
 
             SugarCache.validateKeys(originalFn, keys);
 
@@ -225,6 +231,7 @@ export default class SugarCache {
 
                 return result;
             }
+            descriptor.value.originalFn = originalFn;
         }
     }
 }

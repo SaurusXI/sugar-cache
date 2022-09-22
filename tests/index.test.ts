@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import RedisCache from '../lib';
+import SugarCache from '../lib';
 
 
 describe('Functional tests', () => {
@@ -13,14 +13,13 @@ describe('Functional tests', () => {
     const ttl = 10000;
     
     describe('Basic cache', () => {
-        const cacheBasic = new RedisCache(redis, { width: baseCacheWidth, namespace: 'basic' });
+        const cacheBasic = new SugarCache(redis, { width: baseCacheWidth, namespace: 'basic' });
         const mockKey = 'foo';
         const mockVal = { res: 'bar' };
         
         const mockCacheVals = [...Array(baseCacheWidth).keys()].map(x => ({ key: `foo-${x}`, val: `bar-${x}` }))
 
         it('write', async () => {
-            await cacheBasic.reset();
             await cacheBasic.set(mockKey, mockVal);
         })
         
@@ -35,9 +34,21 @@ describe('Functional tests', () => {
             const cachedVal = await cacheBasic.get(mockKey);
             expect(cachedVal).toBeNull();
         })
+
+        it('clear cache', async () => {
+            for (const mockObj of mockCacheVals) {
+                await cacheBasic.set(mockObj.key, mockObj.val);
+            }
+            await cacheBasic.clear();
+            for (const mockObj of mockCacheVals) {
+                // Since the first element was inserted first, expect that to be omitted
+                const cachedVal = await cacheBasic.get(mockObj.key);
+                expect(cachedVal).toBeNull();
+            }
+        })
         
         it('cache eviction', async () => {
-            await cacheBasic.reset();
+            await cacheBasic.clear();
             for (const mockObj of mockCacheVals) {
                 await cacheBasic.set(mockObj.key, mockObj.val);
             }
@@ -51,6 +62,7 @@ describe('Functional tests', () => {
                 // Since the first element was inserted first, expect that to be omitted
                 const cachedVal = await cacheBasic.get(mockObj.key);
                 if (mockObj === mockCacheVals[0]) {
+                    console.log(JSON.stringify(mockObj));
                     expect(cachedVal).toBeNull();
                 } else {
                     expect(cachedVal).toStrictEqual(mockObj.val);
@@ -60,6 +72,8 @@ describe('Functional tests', () => {
 
         describe('Decorator methods', () => {
             const mockLatency = 3000;
+
+            const secondCacheBasic = new SugarCache(redis, { width: baseCacheWidth, namespace: 'secondBasic' });
 
             class Controller {
                 @cacheBasic.getOrSet(['orgId', 'resourceId'])
@@ -73,6 +87,14 @@ describe('Functional tests', () => {
                 async delete(resourceId: string, orgId: string) {
                     return { res: orgId + resourceId };
                 }
+
+                @secondCacheBasic.getOrSet(['orgId'])
+                @cacheBasic.getOrSet(['orgId', 'resourceId'])
+                async compoundRead(resourceId: string, orgId: string) {
+                    // Introduce mock latency which will not happen when the cache is hit
+                    await new Promise((resolve) => setTimeout(resolve, mockLatency));
+                    return { res: orgId + resourceId };
+                }
             }
              
             const controller = new Controller();
@@ -80,6 +102,7 @@ describe('Functional tests', () => {
             const resourceId = 'resource-uuid';
 
             it('getOrSet first call', async () => {
+                await cacheBasic.clear();
                 const response = await controller.read(resourceId, orgId);
                 expect(response).toStrictEqual({ res: orgId + resourceId });
             });
@@ -95,18 +118,29 @@ describe('Functional tests', () => {
                 const cachedValue = await cacheBasic.get(`${orgId}:${resourceId}`);
                 expect(cachedValue).toBeNull();
             })
+
+            it('compound getOrSet first call', async () => {
+                await secondCacheBasic.clear();
+                const response = await controller.compoundRead(resourceId, orgId);
+                expect(response).toStrictEqual({ res: orgId + resourceId });
+            });
+
+            it('compound getOrSet cached call', async () => {
+                const response = await controller.compoundRead(resourceId, orgId);
+                expect(response).toStrictEqual({ res: orgId + resourceId });
+            }, mockLatency);
         })
     })
     
     describe('TTL cache', () => {
-        const cacheTtl = new RedisCache(redis, { width: baseCacheWidth, ttl, namespace: 'ttl' });
+        const cacheTtl = new SugarCache(redis, { width: baseCacheWidth, ttl, namespace: 'ttl' });
         const mockKey = 'foo';
         const mockVal = { res: 'bar' };
 
         const mockCacheVals = [...Array(baseCacheWidth).keys()].map(x => ({ key: `foo-${x}`, val: `bar-${x}` }))
         
         it('write', async () => {
-            await cacheTtl.reset();
+            await cacheTtl.clear();
             await cacheTtl.set(mockKey, mockVal);
         })
         
@@ -130,9 +164,21 @@ describe('Functional tests', () => {
             const cachedVal = await cacheTtl.get(mockKey);
             expect(cachedVal).toBeNull();
         })
+
+        it('clear cache', async () => {
+            for (const mockObj of mockCacheVals) {
+                await cacheTtl.set(mockObj.key, mockObj.val);
+            }
+            await cacheTtl.clear();
+            for (const mockObj of mockCacheVals) {
+                // Since the first element was inserted first, expect that to be omitted
+                const cachedVal = await cacheTtl.get(mockObj.key);
+                expect(cachedVal).toBeNull();
+            }
+        })
         
         it('cache eviction', async () => {
-            await cacheTtl.reset();
+            await cacheTtl.clear();
             for (const mockObj of mockCacheVals) {
                 await cacheTtl.set(mockObj.key, mockObj.val);
             }
@@ -146,6 +192,7 @@ describe('Functional tests', () => {
                 // Since the first element was inserted first, expect that to be omitted
                 const cachedVal = await cacheTtl.get(mockObj.key);
                 if (mockObj === mockCacheVals[0]) {
+                    console.log(JSON.stringify(mockObj));
                     expect(cachedVal).toBeNull();
                 } else {
                     expect(cachedVal).toStrictEqual(mockObj.val);
@@ -155,14 +202,14 @@ describe('Functional tests', () => {
     })
 
     describe('Large cache', () => {
-        const cacheLarge = new RedisCache(redis, { width: largeCacheWidth, namespace: 'large' });
+        const cacheLarge = new SugarCache(redis, { width: largeCacheWidth, namespace: 'large' });
         const mockKey = 'foo';
         const mockVal = { res: 'bar' };
 
         const mockCacheVals = [...Array(largeCacheWidth).keys()].map(x => ({ key: `foo-${x}`, val: `bar-${x}` }))
 
         it('write', async () => {
-            await cacheLarge.reset();
+            await cacheLarge.clear();
             await cacheLarge.set(mockKey, mockVal);
         })
 
@@ -178,8 +225,20 @@ describe('Functional tests', () => {
             expect(cachedVal).toBeNull();
         })
 
-        it.skip('cache eviction', async () => {
-            await cacheLarge.reset();
+        it('clear cache', async () => {
+            for (const mockObj of mockCacheVals) {
+                await cacheLarge.set(mockObj.key, mockObj.val);
+            }
+            await cacheLarge.clear();
+            for (const mockObj of mockCacheVals) {
+                // Since the first element was inserted first, expect that to be omitted
+                const cachedVal = await cacheLarge.get(mockObj.key);
+                expect(cachedVal).toBeNull();
+            }
+        })
+
+        it('cache eviction', async () => {
+            await cacheLarge.clear();
             for (const mockObj of mockCacheVals) {
                 await cacheLarge.set(mockObj.key, mockObj.val);
             }
@@ -193,11 +252,12 @@ describe('Functional tests', () => {
                 // Since the first element was inserted first, expect that to be omitted
                 const cachedVal = await cacheLarge.get(mockObj.key);
                 if (mockObj === mockCacheVals[0]) {
+                    console.log(JSON.stringify(mockObj));
                     expect(cachedVal).toBeNull();
                 } else {
                     expect(cachedVal).toStrictEqual(mockObj.val);
                 }
             }
-        })
+        }, 20000)
     })
 })
