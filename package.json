@@ -36,5 +36,6 @@
   },
   "homepage": "https://github.com/SaurusXI/sugar-cache",
   "license": "GPLV3",
-  "keywords": ["redis", "cache", "LRU"]
+  "keywords": ["redis", "cache", "LRU"],
+  "main": "dist/exports.js"
 }
