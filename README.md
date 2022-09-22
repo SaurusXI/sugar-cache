@@ -4,7 +4,10 @@ Cache library for Node.js built on top of ioredis.
 ## Usage
 SugarCache exports a default class that instantiates a cache for you when constructed -
 ```javascript
-import SugarCache from 'sugar-cache';
+import { SugarCache } from 'sugar-cache';
+import Redis from 'ioredis';
+
+const redisObj = new Redis();
 const cache = new SugarCache(redisObj, { width: 1000 });
 ```
 
