@@ -138,7 +138,6 @@ export class SugarCache {
         // If cache width is reached, evict extra values from cache
         const deletionCandidateKeys = result[2][1] as string[];
         if (deletionCandidateKeys.length > 0) {
-            console.log(`Deletion candidates - ${JSON.stringify(deletionCandidateKeys)}`);
             await this.redisTransaction()
                 .zrem(this.scoreSetKey, ...deletionCandidateKeys)
                 .del(...deletionCandidateKeys)
