@@ -18,6 +18,8 @@ jobs:
       - run: npm run build
       - name: Release
         env:
+          GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GIT_AUTHOR_NAME: "Shantanu Verma"
           GIT_AUTHOR_EMAIL: "vermashantanu@hotmail.com"
         run: npx semantic-release
