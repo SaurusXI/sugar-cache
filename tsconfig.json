@@ -14,6 +14,8 @@
         "noLib": false,
         "preserveConstEnums": true,
         "suppressImplicitAnyIndexErrors": true,
+        "outDir": "dist",
+        "baseUrl": "./lib/",
     },
     "include": ["./**/*.ts"]
 }
