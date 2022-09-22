@@ -1,3 +1,2 @@
-export * as default from './main';
+export * as SugarCache from './main';
 export * from './types';
-export * from './constants';
