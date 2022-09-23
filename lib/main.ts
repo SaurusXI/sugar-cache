@@ -109,8 +109,10 @@ export class SugarCache {
             .exec();
 
         result.forEach(([err, _]) => {
-            this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
-            if (err) throw new Error('[SugarCache] Internal redis error');
+            if (err) {
+                this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
+                throw new Error('[SugarCache] Internal redis error');
+            }
         });
 
         // If value is expired and still in scoreSet, remove from scoreSet
@@ -145,8 +147,10 @@ export class SugarCache {
             .exec();
 
         result.forEach(([err, _]) => {
-            this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
-            if (err) throw new Error('[SugarCache] Internal redis error');
+            if (err) {
+                this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
+                throw new Error('[SugarCache] Internal redis error');
+            }
         });
 
         // If cache width is reached, evict extra values from cache
@@ -173,8 +177,10 @@ export class SugarCache {
             .exec();
         
         result.forEach(([err, _]) => {
-            this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
-            if (err) throw new Error('[SugarCache] Internal redis error');
+            if (err) {
+                this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
+                throw new Error('[SugarCache] Internal redis error');
+            }
         });
     }
 
