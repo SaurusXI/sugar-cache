@@ -3,9 +3,10 @@
  */
 
 import Redis from "ioredis";
+import readFunctionParams from '@captemulation/get-parameter-names';
+import { dummyLogger, Logger } from 'ts-log';
 import { EvictionScheme, RedisConstants, RedisExpiryModes } from "./constants";
 import { CacheOptions } from "./types";
-import readFunctionParams from '@captemulation/get-parameter-names';
 
 export class SugarCache {
     private redis: Redis;
@@ -21,7 +22,9 @@ export class SugarCache {
 
     private maxWidth: number;
 
-    constructor(redis: Redis, options: CacheOptions) {
+    private readonly logger: Logger;
+
+    constructor(redis: Redis, options: CacheOptions, logger: Logger = dummyLogger) {
         const { namespace, scheme, ttl, width } = options;
 
         this.redis = redis;
@@ -29,6 +32,8 @@ export class SugarCache {
         this.namespace = `sugar-cache:${namespace || 'default'}`;
         this.evictionScheme = scheme || EvictionScheme.LRU;
         this.ttl = ttl;
+
+        this.logger = logger;
 
         if (width < 1) throw new Error('[SugarCache] Cache width needs to be >= 1');
         this.maxWidth = width;
@@ -59,15 +64,21 @@ export class SugarCache {
     private clearExpiredEntries = async () => {
         if (!this.ttl) return;
 
+        this.logger.debug(`[SugarCache] Clearing expired entries for cache ${this.namespace}`);
+
         const largestValidScore = -1 * ((new Date().getTime()) - this.ttl);
         await this.redis.zremrangebyscore(this.scoreSetKey, largestValidScore, RedisConstants.Max)
             .catch((err) => { throw new Error(`[SugarCache] Could not clear expired cache entries - ${err}`) });
     }
 
-    private static validateKeys = (targetFn: any, cacheKeys: string[]) => {
+    private validateKeys = (targetFn: any, cacheKeys: string[]) => {
         const params = readFunctionParams(targetFn);
         const invalidKeys = cacheKeys.filter(k => !params.includes(k));
-        if (invalidKeys.length) throw new Error('[SugarCache] Keys passed to decorator do not match function params');
+
+        if (invalidKeys.length) {
+            this.logger.debug(`[SugarCache] Function params - ${JSON.stringify(params)}, cacheKeys - ${JSON.stringify(cacheKeys)}, invalid keys - ${JSON.stringify(invalidKeys)}`)
+            throw new Error('[SugarCache] Keys passed to decorator do not match function params');
+        }
     }
 
     private static transformIntoNamedArgs = (args: IArguments, targetFn: any) => {
@@ -98,11 +109,13 @@ export class SugarCache {
             .exec();
 
         result.forEach(([err, _]) => {
-            if (err) throw err;
+            this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
+            if (err) throw new Error('[SugarCache] Internal redis error');
         });
 
         // If value is expired and still in scoreSet, remove from scoreSet
         if (result[0][1] === null && result[1][1]) {
+            this.logger.debug(`[SugarCache] Value for ${key} is expired but is still stored in scoreSet - ${JSON.stringify(result[1][1])}, removing`);
             await this.redis.zrem(this.scoreSetKey, cacheKey);
             return null;
         }
@@ -132,12 +145,14 @@ export class SugarCache {
             .exec();
 
         result.forEach(([err, _]) => {
-            if (err) throw err;
+            this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
+            if (err) throw new Error('[SugarCache] Internal redis error');
         });
 
         // If cache width is reached, evict extra values from cache
         const deletionCandidateKeys = result[2][1] as string[];
         if (deletionCandidateKeys.length > 0) {
+            this.logger.debug(`[SugarCache] Deletion candidates - ${JSON.stringify(deletionCandidateKeys)}`);
             await this.redisTransaction()
                 .zrem(this.scoreSetKey, ...deletionCandidateKeys)
                 .del(...deletionCandidateKeys)
@@ -158,7 +173,8 @@ export class SugarCache {
             .exec();
         
         result.forEach(([err, _]) => {
-            if (err) throw err;
+            this.logger.debug(`[SugarCache] error encountered on redis layer - ${err}`);
+            if (err) throw new Error('[SugarCache] Internal redis error');
         });
     }
 
@@ -168,7 +184,10 @@ export class SugarCache {
      */
     public clear = async () => {
         const deletionCandidateKeys = await this.redis.zrange(this.scoreSetKey, 0, -1);
+        
+        this.logger.debug(`[SugarCache] Deletion candidate keys - ${deletionCandidateKeys}`);
         if (!deletionCandidateKeys.length) return;
+        
         await this.redisTransaction()
             .zremrangebyscore(this.scoreSetKey, RedisConstants.Min, RedisConstants.Max)
             .del(...deletionCandidateKeys)
@@ -187,7 +206,7 @@ export class SugarCache {
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             let originalFn = descriptor.value.originalFn || descriptor.value;
 
-            SugarCache.validateKeys(originalFn, keys);
+            cacheInstance.validateKeys(originalFn, keys);
 
             descriptor.value = async function () {
                 const namedArguments = SugarCache.transformIntoNamedArgs(arguments, originalFn);
@@ -216,7 +235,7 @@ export class SugarCache {
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             let originalFn = descriptor.value.originalFn || descriptor.value;
 
-            SugarCache.validateKeys(originalFn, keys);
+            cacheInstance.validateKeys(originalFn, keys);
 
             descriptor.value = async function () {
                 const namedArguments = SugarCache.transformIntoNamedArgs(arguments, originalFn);
