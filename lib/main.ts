@@ -5,7 +5,7 @@
 import Redis from "ioredis";
 import readFunctionParams from '@captemulation/get-parameter-names';
 import { dummyLogger, Logger } from 'ts-log';
-import { EvictionScheme, RedisConstants, RedisExpiryModes } from "./constants";
+import { EvictionScheme, RedisConstants, RedisExpiryModes, RedisZaddOptions } from "./constants";
 import { CacheOptions } from "./types";
 
 export class SugarCache {
@@ -105,7 +105,7 @@ export class SugarCache {
             // fetch value
             .get(cacheKey)
             // update its score in the score set
-            .zadd(this.scoreSetKey, score, cacheKey)
+            .zadd(this.scoreSetKey, RedisZaddOptions.UpdateOnly, score, cacheKey)
             .exec();
 
         result.forEach(([err, _]) => {
