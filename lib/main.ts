@@ -227,9 +227,10 @@ export class SugarCache {
                 };
 
                 const result = await originalFn.apply(this, arguments);
-                cacheInstance.set(cacheKey, result)
-                    .then(() => cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] result for key ${cacheKey} set in cache`))
+                await cacheInstance.set(cacheKey, result)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to set value to cache - ${err}`) });
+
+                cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] result for key ${cacheKey} set in cache`)
 
                 return result;
             };
@@ -254,9 +255,10 @@ export class SugarCache {
                 const cacheKeyArgs = keys.map(k => namedArguments[k]);
                 const cacheKey = cacheKeyArgs.join(':');
 
-                cacheInstance.del(cacheKey)
-                    .then(() => cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] removing key ${cacheKey} from cache`))
+                await cacheInstance.del(cacheKey)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to delete value from cache - ${err}`)});
+
+                cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] removed key ${cacheKey} from cache`)
                 const result = await originalFn.apply(this, arguments);
 
                 return result;
