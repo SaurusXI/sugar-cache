@@ -2,7 +2,7 @@
  * @author Shantanu Verma (github.com/SaurusXI)
  */
 
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import readFunctionParams from '@captemulation/get-parameter-names';
 import { dummyLogger, Logger } from 'ts-log';
 import { EvictionScheme, RedisConstants, RedisExpiryModes, RedisZaddOptions } from "./constants";
