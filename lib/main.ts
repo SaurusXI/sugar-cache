@@ -42,7 +42,7 @@ export class SugarCache {
 
         // If cache entries have a TTL remove expired entries from scoreSet every 1 minute
         if (this.ttl) {
-            setTimeout(this.clearExpiredEntries, 60000);
+            setInterval(this.clearExpiredEntries, 60000);
         }
     }
 
