@@ -29,7 +29,7 @@ export class SugarCache {
 
         this.redis = redis;
 
-        this.namespace = `{sugar-cache:${namespace || 'default'}}`;
+        this.namespace = `sugar-cache:${namespace || 'default'}`;
         this.evictionScheme = scheme || EvictionScheme.LRU;
         this.ttl = ttl;
 
