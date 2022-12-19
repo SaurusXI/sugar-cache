@@ -2,14 +2,14 @@
  * @author Shantanu Verma (github.com/SaurusXI)
  */
 
-import { Redis, Cluster } from "ioredis";
+import { Redis } from "ioredis";
 import readFunctionParams from '@captemulation/get-parameter-names';
 import { dummyLogger, Logger } from 'ts-log';
 import { EvictionScheme, RedisConstants, RedisExpiryModes, RedisZaddOptions } from "./constants";
 import { CacheOptions } from "./types";
 
 export class SugarCache {
-    private redis: Redis | Cluster;
+    private redis: Redis;
 
     private namespace: string;
 
@@ -24,7 +24,7 @@ export class SugarCache {
 
     private readonly logger: Logger;
 
-    constructor(redis: Redis | Cluster, options: CacheOptions, logger: Logger = dummyLogger) {
+    constructor(redis: Redis, options: CacheOptions, logger: Logger = dummyLogger) {
         const { namespace, scheme, ttl, width } = options;
 
         this.redis = redis;
@@ -123,6 +123,17 @@ export class SugarCache {
         }
         
         const [_, value] = result[0];
+
+        let output;
+        try {
+            output = JSON.parse(value as string);
+        } catch (err) {
+            if (err instanceof SyntaxError) {
+                output = null;
+            }
+            this.logger.debug(`[SugarCache:${this.namespace}] Error encountered in parsing - ${err}`);
+            throw err;
+        }
         return JSON.parse(value as string);
     }
 
