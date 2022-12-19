@@ -128,11 +128,8 @@ export class SugarCache {
         try {
             output = JSON.parse(value as string);
         } catch (err) {
-            if (err instanceof SyntaxError) {
-                output = null;
-            }
             this.logger.debug(`[SugarCache:${this.namespace}] Error encountered in parsing - ${err}`);
-            throw err;
+            output = null;
         }
         return output;
     }
