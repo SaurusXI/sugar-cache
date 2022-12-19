@@ -134,7 +134,7 @@ export class SugarCache {
             this.logger.debug(`[SugarCache:${this.namespace}] Error encountered in parsing - ${err}`);
             throw err;
         }
-        return JSON.parse(value as string);
+        return output;
     }
 
     /**
