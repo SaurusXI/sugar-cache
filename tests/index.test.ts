@@ -11,18 +11,17 @@ describe('Functional tests', () => {
     const baseCacheWidth = 3;
     const largeCacheWidth = 10000;
     const ttl = 10000;
-    
     describe('Basic cache', () => {
         const cacheBasic = new SugarCache(redis, { width: baseCacheWidth, namespace: 'basic' });
         const mockKey = 'foo';
         const mockVal = { res: 'bar' };
-        
+
         const mockCacheVals = [...Array(baseCacheWidth).keys()].map(x => ({ key: `foo-${x}`, val: `bar-${x}` }))
 
         it('write', async () => {
             await cacheBasic.set(mockKey, mockVal);
         })
-        
+
         it('read', async () => {
             const cachedVal = await cacheBasic.get(mockKey);
             expect(cachedVal).toStrictEqual(mockVal);
@@ -30,11 +29,10 @@ describe('Functional tests', () => {
         
         it('delete', async () => {
             await cacheBasic.del(mockKey);
-            
             const cachedVal = await cacheBasic.get(mockKey);
             expect(cachedVal).toBeNull();
         })
-
+        
         it('clear cache', async () => {
             for (const mockObj of mockCacheVals) {
                 await cacheBasic.set(mockObj.key, mockObj.val);
@@ -52,7 +50,6 @@ describe('Functional tests', () => {
             for (const mockObj of mockCacheVals) {
                 await cacheBasic.set(mockObj.key, mockObj.val);
             }
-            
             // Now insert value into cache and see what happens
             await cacheBasic.set(mockKey, mockVal);
             const cachedVal = await cacheBasic.get(mockKey);
@@ -96,7 +93,6 @@ describe('Functional tests', () => {
                     return { res: orgId + resourceId };
                 }
             }
-             
             const controller = new Controller();
             const orgId = 'org-uuid';
             const resourceId = 'resource-uuid';
@@ -131,24 +127,82 @@ describe('Functional tests', () => {
             }, mockLatency);
         })
     })
-    
+    describe('Basic cache with redis cluster', () => {
+        const redisCluster = new Redis.Cluster([{ host: process.env.REDIS_CLUSTER_HOST, port: parseInt(process.env.REDIS_CLUSTER_PORT, 10) }]);
+        const cacheBasic = new SugarCache(redisCluster, { width: baseCacheWidth, namespace: 'basic' });
+        const mockKey = 'foo';
+        const mockVal = { res: 'bar' };
+
+        const mockCacheVals = [...Array(baseCacheWidth).keys()].map(x => ({ key: `foo-${x}`, val: `bar-${x}` }))
+
+        it('write', async () => {
+            await cacheBasic.set(mockKey, mockVal);
+        })
+
+        it('read', async () => {
+            const cachedVal = await cacheBasic.get(mockKey);
+            expect(cachedVal).toStrictEqual(mockVal);
+        })
+
+        it('delete', async () => {
+            await cacheBasic.del(mockKey);
+
+            const cachedVal = await cacheBasic.get(mockKey);
+            expect(cachedVal).toBeNull();
+        })
+
+        it('clear cache', async () => {
+            for (const mockObj of mockCacheVals) {
+                await cacheBasic.set(mockObj.key, mockObj.val);
+            }
+            await cacheBasic.clear();
+            for (const mockObj of mockCacheVals) {
+                // Since the first element was inserted first, expect that to be omitted
+                const cachedVal = await cacheBasic.get(mockObj.key);
+                expect(cachedVal).toBeNull();
+            }
+        })
+
+        it('cache eviction', async () => {
+            await cacheBasic.clear();
+            for (const mockObj of mockCacheVals) {
+                await cacheBasic.set(mockObj.key, mockObj.val);
+            }
+
+            // Now insert value into cache and see what happens
+            await cacheBasic.set(mockKey, mockVal);
+            const cachedVal = await cacheBasic.get(mockKey);
+            expect(cachedVal).toStrictEqual(mockVal);
+
+            for (const mockObj of mockCacheVals) {
+                // Since the first element was inserted first, expect that to be omitted
+                const cachedVal = await cacheBasic.get(mockObj.key);
+                if (mockObj === mockCacheVals[0]) {
+                    console.log(JSON.stringify(mockObj));
+                    expect(cachedVal).toBeNull();
+                } else {
+                    expect(cachedVal).toStrictEqual(mockObj.val);
+                }
+            }
+        })
+    })
     describe('TTL cache', () => {
         const cacheTtl = new SugarCache(redis, { width: baseCacheWidth, ttl, namespace: 'ttl' });
         const mockKey = 'foo';
         const mockVal = { res: 'bar' };
 
         const mockCacheVals = [...Array(baseCacheWidth).keys()].map(x => ({ key: `foo-${x}`, val: `bar-${x}` }))
-        
+
         it('write', async () => {
             await cacheTtl.clear();
             await cacheTtl.set(mockKey, mockVal);
         })
-        
+
         it('read', async () => {
             const cachedVal = await cacheTtl.get(mockKey);
             expect(cachedVal).toStrictEqual(mockVal);
         })
-        
+
         it('TTL based eviction', async () => {
             await cacheTtl.set(mockKey, mockVal);
             await new Promise((resolve) => {
@@ -156,11 +210,11 @@ describe('Functional tests', () => {
             });
             const cachedVal = await cacheTtl.get(mockKey);
             expect(cachedVal).toBeNull();
-        }, 2*ttl)
-        
+        }, 2 * ttl)
+
         it('delete', async () => {
             await cacheTtl.del(mockKey);
-            
+
             const cachedVal = await cacheTtl.get(mockKey);
             expect(cachedVal).toBeNull();
         })
@@ -176,13 +230,13 @@ describe('Functional tests', () => {
                 expect(cachedVal).toBeNull();
             }
         })
-        
+
         it('cache eviction', async () => {
             await cacheTtl.clear();
             for (const mockObj of mockCacheVals) {
                 await cacheTtl.set(mockObj.key, mockObj.val);
             }
-            
+
             // Now insert value into cache and see what happens
             await cacheTtl.set(mockKey, mockVal);
             const cachedVal = await cacheTtl.get(mockKey);
@@ -242,7 +296,7 @@ describe('Functional tests', () => {
             for (const mockObj of mockCacheVals) {
                 await cacheLarge.set(mockObj.key, mockObj.val);
             }
-            
+
             // Now insert value into cache and see what happens
             await cacheLarge.set(mockKey, mockVal);
             const cachedVal = await cacheLarge.get(mockKey);
