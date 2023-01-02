@@ -2,14 +2,14 @@
  * @author Shantanu Verma (github.com/SaurusXI)
  */
 
-import { Redis } from "ioredis";
+import { Cluster, Redis } from "ioredis";
 import readFunctionParams from '@captemulation/get-parameter-names';
 import { dummyLogger, Logger } from 'ts-log';
 import { EvictionScheme, RedisConstants, RedisExpiryModes, RedisZaddOptions } from "./constants";
 import { CacheOptions } from "./types";
 
 export class SugarCache {
-    private redis: Redis;
+    private redis: Redis | Cluster;
 
     private namespace: string;
 
@@ -24,7 +24,7 @@ export class SugarCache {
 
     private readonly logger: Logger;
 
-    constructor(redis: Redis, options: CacheOptions, logger: Logger = dummyLogger) {
+    constructor(redis: Redis | Cluster, options: CacheOptions, logger: Logger = dummyLogger) {
         const { namespace, scheme, ttl, width } = options;
 
         this.redis = redis;
