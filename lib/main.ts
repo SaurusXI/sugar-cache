@@ -5,70 +5,53 @@
 import { Cluster, Redis } from "ioredis";
 import readFunctionParams from '@captemulation/get-parameter-names';
 import { dummyLogger, Logger } from 'ts-log';
-import { EvictionScheme, RedisConstants, RedisExpiryModes, RedisZaddOptions } from "./constants";
-import { CacheOptions } from "./types";
+import { RedisConstants, RedisExpiryModes } from "./constants";
+import { CacheResultParams, CreateCacheOptions, InvalidateFromCacheParams, TTL } from "./types";
 
 export class SugarCache {
     private redis: Redis | Cluster;
 
     private namespace: string;
 
-    // Score set is a ZSET that stores scores for each key
-    private scoreSetKey: string;
-
-    private evictionScheme: EvictionScheme;
-
-    private ttl: number;
-
-    private maxWidth: number;
-
     private readonly logger: Logger;
 
-    constructor(redis: Redis | Cluster, options: CacheOptions, logger: Logger = dummyLogger) {
-        const { namespace, scheme, ttl, width } = options;
-
+    constructor(redis: Redis | Cluster, options: CreateCacheOptions, logger: Logger = dummyLogger) {
+        const { namespace } = options;
         this.redis = redis;
-
-        this.namespace = `{sugar-cache:${namespace || 'default'}}`;
-        this.evictionScheme = scheme || EvictionScheme.LRU;
-        this.ttl = ttl;
-
+        this.namespace = `sugar-cache:${namespace || 'default'}`;
         this.logger = logger;
-
-        if (width < 1) throw new Error('[SugarCache] Cache width needs to be >= 1');
-        this.maxWidth = width;
-    
-        this.scoreSetKey = `${this.namespace}:scoreSet`;
-
-        // If cache entries have a TTL remove expired entries from scoreSet every 1 minute
-        if (this.ttl) {
-            setInterval(this.clearExpiredEntries, 60000);
-        }
     }
 
-    private transformIntoCacheKey = (key: string) => `${this.namespace}:cache:${key}`; 
+    private transformIntoCacheKey = (key: string) => `${this.namespace}:${key}`; 
 
     private redisTransaction = () => this.redis.multi();
 
-    private getScore = (key: string) => {
-        switch (this.evictionScheme) {
-            case EvictionScheme.LRU: {
-                return -1 * (new Date().getTime());
-            }
-            default: {
-                throw new Error(`[SugarCache:${this.namespace}] Cache scheme ${this.evictionScheme} not supported`);
+    private computeTTLInMilliseconds = (ttl: TTL) => {
+        if (typeof ttl === 'number') {
+            return ttl;
+        } else {
+            const { value, unit } = ttl;
+            switch (unit) {
+                case 'milliseconds': {
+                    return value;
+                }
+                case 'seconds': {
+                    return value * 1000;
+                }
+                case 'minutes': {
+                    return value * 1000 * 60;
+                }
+                case 'hours': {
+                    return value * 1000 * 60 * 60;
+                }
+                case 'days': {
+                    return value * 1000 * 60 * 60 * 24;
+                }
+                default: {
+                    throw new Error(`[SugarCache]:${this.namespace} Incorrect TTL unit provided to constructor`);
+                }
             }
         }
-    };
-
-    private clearExpiredEntries = async () => {
-        if (!this.ttl) return;
-
-        this.logger.debug(`[SugarCache:${this.namespace}] Clearing expired entries for cache ${this.namespace}`);
-
-        const largestValidScore = -1 * ((new Date().getTime()) - this.ttl);
-        await this.redis.zremrangebyscore(this.scoreSetKey, largestValidScore, RedisConstants.Max)
-            .catch((err) => { throw new Error(`[SugarCache]:${this.namespace} Could not clear expired cache entries - ${err}`) });
     }
 
     private validateKeys = (targetFn: any, cacheKeys: string[]) => {
@@ -99,13 +82,10 @@ export class SugarCache {
      */
     public get = async (key: string) => {
         const cacheKey = this.transformIntoCacheKey(key);
-        const score = this.getScore(cacheKey);
 
         const result = await this.redisTransaction()
             // fetch value
             .get(cacheKey)
-            // update its score in the score set
-            .zadd(this.scoreSetKey, RedisZaddOptions.UpdateOnly, score, cacheKey)
             .exec();
 
         result.forEach(([err, _]) => {
@@ -114,13 +94,6 @@ export class SugarCache {
                 throw new Error('[SugarCache] Internal redis error');
             }
         });
-
-        // If value is expired and still in scoreSet, remove from scoreSet
-        if (result[0][1] === null && result[1][1]) {
-            this.logger.debug(`[SugarCache:${this.namespace}] Value for ${key} is expired but is still stored in scoreSet - ${JSON.stringify(result[1][1])}, removing`);
-            await this.redis.zrem(this.scoreSetKey, cacheKey);
-            return null;
-        }
         
         const [_, value] = result[0];
 
@@ -139,19 +112,12 @@ export class SugarCache {
      * @param key Cache key at which the value has to be stored
      * @param value The value to be stored at the key
      */
-    public set = async (key: string, value: any) => {
+    public set = async (key: string, value: any, ttl: TTL) => {
         const cacheKey = this.transformIntoCacheKey(key);
-        const score = this.getScore(cacheKey);
 
-        const setQueryParams = this.ttl ? [cacheKey, JSON.stringify(value), RedisExpiryModes.Milliseconds, this.ttl] : [cacheKey, JSON.stringify(value)];
         const result = await this.redisTransaction()
             // set value in cache
-            // @ts-ignore
-            .set(...setQueryParams)
-            // add its score to scoreSet
-            .zadd(this.scoreSetKey, score, cacheKey)
-            // get all values overflowing the cache width
-            .zrange(this.scoreSetKey, this.maxWidth, -1)
+            .set(cacheKey, JSON.stringify(value), RedisExpiryModes.Milliseconds, this.computeTTLInMilliseconds(ttl))
             .exec();
 
         result.forEach(([err, _]) => {
@@ -160,16 +126,6 @@ export class SugarCache {
                 throw new Error('[SugarCache] Internal redis error');
             }
         });
-
-        // If cache width is reached, evict extra values from cache
-        const deletionCandidateKeys = result[2][1] as string[];
-        if (deletionCandidateKeys.length > 0) {
-            this.logger.debug(`[SugarCache:${this.namespace}] Deletion candidates - ${JSON.stringify(deletionCandidateKeys)}`);
-            await this.redisTransaction()
-                .zrem(this.scoreSetKey, ...deletionCandidateKeys)
-                .del(...deletionCandidateKeys)
-                .exec();
-        }
     }
 
     /**
@@ -181,7 +137,6 @@ export class SugarCache {
         
         const result = await this.redisTransaction()
             .del(cacheKey)
-            .zrem(this.scoreSetKey, cacheKey)
             .exec();
         
         result.forEach(([err, _]) => {
@@ -195,15 +150,15 @@ export class SugarCache {
     /**
      * Deletes all values in the cache
      * Bear in mind that this will only remove values from redis that are under the namespace of the cache object
+     * This is an expensive operation (since it operates on all keys inside a namespace) and should be used with care
      */
     public clear = async () => {
-        const deletionCandidateKeys = await this.redis.zrange(this.scoreSetKey, 0, -1);
+        const deletionCandidateKeys = await this.redis.keys(`${this.namespace}*`);
         
         this.logger.debug(`[SugarCache:${this.namespace}] Deletion candidate keys - ${deletionCandidateKeys}`);
         if (!deletionCandidateKeys.length) return;
         
         await this.redisTransaction()
-            .zremrangebyscore(this.scoreSetKey, RedisConstants.Min, RedisConstants.Max)
             .del(...deletionCandidateKeys)
             .exec();
     }
@@ -215,11 +170,13 @@ export class SugarCache {
      * If it doesn't the target function is called and the return value is set on cache
      * @param keys Ordered list of identifiers for value in cache
      */
-    public getOrSet(keys: string[]) {
+    public cacheFnResult(params: CacheResultParams) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             let originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
+
+            const { keyVariables: keys, ttl } = params;
 
             cacheInstance.validateKeys(originalFn, keys);
 
@@ -236,7 +193,7 @@ export class SugarCache {
                 };
 
                 const result = await currentFn.apply(this, arguments);
-                await cacheInstance.set(cacheKey, result)
+                await cacheInstance.set(cacheKey, result, ttl)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to set value to cache - ${err}`) });
 
                 cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] result for key ${cacheKey} set in cache`)
@@ -251,11 +208,13 @@ export class SugarCache {
      * Decorator to remove value from cache
      * @param keys Ordered list of identifiers in cache
      */
-    public invalidate(keys: string[]) {
+    public invalidateFromCache(params: InvalidateFromCacheParams) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             let originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
+
+            const { keyVariables: keys } = params;
 
             cacheInstance.validateKeys(originalFn, keys);
 
