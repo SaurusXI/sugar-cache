@@ -14,10 +14,23 @@ jobs:
         with:
           node-version: 18
         
-      - name: Start Redis
+      - name: Start Redis Single Node
         uses: supercharge/redis-github-action@1.4.0
         with:
           redis-version: 6
 
-      - run: npm ci
-      - run: npm run test
+      - name: Start Redis Cluster
+        uses: vishnudxb/redis-cluster@1.0.5
+        with: 
+          master1-port: 6380
+          master2-port: 6381
+          master3-port: 6382
+          slave1-port: 6383
+          slave2-port: 6384
+          slave3-port: 6385
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test

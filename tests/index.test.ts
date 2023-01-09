@@ -120,4 +120,40 @@ describe('Functional tests', () => {
             }, mockLatency);
         })
     })
+    describe('Basic cache with redis cluster', () => {
+        const redisCluster = new Redis.Cluster([{ host: '127.0.0.1', port: 6380 }]);
+        const cacheBasic = new SugarCache(redisCluster, { namespace: 'cluster' });
+        const mockKey = 'foo';
+        const mockVal = { res: 'bar' };
+
+        const mockCacheVals = [...Array(totTestKeys).keys()].map(x => ({ key: `foo-${x}`, val: `bar-${x}` }))
+
+        it('write', async () => {
+            await cacheBasic.set(mockKey, mockVal, ttl);
+        })
+
+        it('read', async () => {
+            const cachedVal = await cacheBasic.get(mockKey);
+            expect(cachedVal).toStrictEqual(mockVal);
+        })
+
+        it('delete', async () => {
+            await cacheBasic.del(mockKey);
+
+            const cachedVal = await cacheBasic.get(mockKey);
+            expect(cachedVal).toBeNull();
+        })
+
+        it('clear cache', async () => {
+            for (const mockObj of mockCacheVals) {
+                await cacheBasic.set(mockObj.key, mockObj.val, ttl);
+            }
+            await cacheBasic.clear();
+            for (const mockObj of mockCacheVals) {
+                // Since the first element was inserted first, expect that to be omitted
+                const cachedVal = await cacheBasic.get(mockObj.key);
+                expect(cachedVal).toBeNull();
+            }
+        })
+    })
 })
