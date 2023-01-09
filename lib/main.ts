@@ -170,13 +170,13 @@ export class SugarCache {
      * If it doesn't the target function is called and the return value is set on cache
      * @param keys Ordered list of identifiers for value in cache
      */
-    public cacheResult(params: CacheResultParams) {
+    public cacheFnResult(params: CacheResultParams) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             let originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { keys, ttl } = params;
+            const { keyVariables: keys, ttl } = params;
 
             cacheInstance.validateKeys(originalFn, keys);
 
@@ -214,7 +214,7 @@ export class SugarCache {
             let originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { keys } = params;
+            const { keyVariables: keys } = params;
 
             cacheInstance.validateKeys(originalFn, keys);
 

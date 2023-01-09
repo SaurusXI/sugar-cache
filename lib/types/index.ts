@@ -14,10 +14,10 @@ export type TTL = number | {
 };
 
 export type CacheResultParams = {
-    keys: string[];
+    keyVariables: string[];
     ttl: TTL;
 }
 
 export type InvalidateFromCacheParams = {
-    keys: string[];
+    keyVariables: string[];
 }
