@@ -155,11 +155,15 @@ export class SugarCache {
     public clear = async () => {
         if (this.redis instanceof Cluster) {
             console.log('here');
-            await Promise.all((this.redis as Cluster).nodes('master')
+            const deletionCandidateKeysMap = await Promise.all((this.redis as Cluster).nodes('master')
                 .map(async (node) => {
-                    const deletionCandidateKeys = await node.keys(`${this.namespace}*`);
-                    await node.del(deletionCandidateKeys);
-                }))
+                    return node.keys(`${this.namespace}*`);
+                    
+                }));
+            const deletionCandidateKeys = [].concat(...deletionCandidateKeysMap);
+            this.logger.debug(`[SugarCache:${this.namespace}] Deletion candidate keys - ${deletionCandidateKeys}`);
+            await Promise.all(deletionCandidateKeys.map(k => this.redis.del(k)));
+            this.logger.debug(`[SugarCache:${this.namespace}] Deletion keys removed`);
             return;
         }
         const deletionCandidateKeys = await this.redis.keys(`${this.namespace}*`);
