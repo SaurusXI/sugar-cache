@@ -90,13 +90,13 @@ describe('Functional tests', () => {
             const resourceCategory = 'org-uuid';
             const resourceId = 'resource-uuid';
 
-            it('getOrSet first call', async () => {
+            it('cacheFnResult first call', async () => {
                 await cacheBasic.clear();
                 const response = await controller.read(resourceId, resourceCategory);
                 expect(response).toStrictEqual({ res: resourceCategory + resourceId });
             });
 
-            it('getOrSet cached call', async () => {
+            it('cacheFnResult cached call', async () => {
                 const response = await controller.read(resourceId, resourceCategory);
                 expect(response).toStrictEqual({ res: resourceCategory + resourceId });
             }, (mockLatency / 2));
@@ -108,13 +108,13 @@ describe('Functional tests', () => {
                 expect(cachedValue).toBeNull();
             })
 
-            it('compound getOrSet first call', async () => {
+            it('compound cacheFnResult first call', async () => {
                 await secondCacheBasic.clear();
                 const response = await controller.compoundRead(resourceId, resourceCategory);
                 expect(response).toStrictEqual({ res: resourceCategory + resourceId });
             });
 
-            it('compound getOrSet cached call', async () => {
+            it('compound cacheFnResult cached call', async () => {
                 const response = await controller.compoundRead(resourceId, resourceCategory);
                 expect(response).toStrictEqual({ res: resourceCategory + resourceId });
             }, mockLatency);
