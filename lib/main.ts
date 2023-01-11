@@ -158,7 +158,9 @@ export class SugarCache {
         this.logger.debug(`[SugarCache:${this.namespace}] Deletion candidate keys - ${deletionCandidateKeys}`);
         if (!deletionCandidateKeys.length) return;
         
-        await this.redis.del(...deletionCandidateKeys);
+        await Promise.all(deletionCandidateKeys.map(k => this.redis.del(k)));
+
+        this.logger.debug(`[SugarCache:${this.namespace}] Deletion keys removed`);
     }
 
     // ----------- Decorator Methods -----------
