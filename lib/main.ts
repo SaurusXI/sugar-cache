@@ -157,6 +157,8 @@ export class SugarCache {
         
         this.logger.debug(`[SugarCache:${this.namespace}] Deletion candidate keys - ${deletionCandidateKeys}`);
         if (!deletionCandidateKeys.length) return;
+
+        console.log(deletionCandidateKeys);
         
         await Promise.all(deletionCandidateKeys.map(k => this.redis.del(k)));
 
