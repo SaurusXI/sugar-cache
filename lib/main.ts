@@ -153,14 +153,20 @@ export class SugarCache {
      * This is an expensive operation (since it operates on all keys inside a namespace) and should be used with care
      */
     public clear = async () => {
+        if (this.redis.isCluster) {
+            await Promise.all((this.redis as Cluster).nodes('master')
+                .map(async (node) => {
+                    const deletionCandidateKeys = await node.keys(`${this.namespace}*`);
+                    await node.del(deletionCandidateKeys);
+                }))
+            return;
+        }
         const deletionCandidateKeys = await this.redis.keys(`${this.namespace}*`);
         
         this.logger.debug(`[SugarCache:${this.namespace}] Deletion candidate keys - ${deletionCandidateKeys}`);
         if (!deletionCandidateKeys.length) return;
 
-        console.log(deletionCandidateKeys);
-        
-        await Promise.all(deletionCandidateKeys.map(k => this.redis.del(k)));
+        await this.redis.del(deletionCandidateKeys);
 
         this.logger.debug(`[SugarCache:${this.namespace}] Deletion keys removed`);
     }
