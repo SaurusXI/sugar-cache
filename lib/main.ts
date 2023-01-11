@@ -153,7 +153,8 @@ export class SugarCache {
      * This is an expensive operation (since it operates on all keys inside a namespace) and should be used with care
      */
     public clear = async () => {
-        if (this.redis.isCluster) {
+        if (this.redis instanceof Cluster) {
+            console.log('here');
             await Promise.all((this.redis as Cluster).nodes('master')
                 .map(async (node) => {
                     const deletionCandidateKeys = await node.keys(`${this.namespace}*`);

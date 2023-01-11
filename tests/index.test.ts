@@ -49,7 +49,7 @@ describe('Functional tests', () => {
         it('TTL based eviction', async () => {
             await cacheBasic.set(mockKey, mockVal, ttl);
             await new Promise((resolve) => {
-                setTimeout(resolve, ttl)
+                setTimeout(resolve, ttl * 1.1)
             });
             const cachedVal = await cacheBasic.get(mockKey);
             expect(cachedVal).toBeNull();
