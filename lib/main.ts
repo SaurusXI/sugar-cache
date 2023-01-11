@@ -154,7 +154,6 @@ export class SugarCache {
      */
     public clear = async () => {
         if (this.redis instanceof Cluster) {
-            console.log('here');
             const deletionCandidateKeysMap = await Promise.all((this.redis as Cluster).nodes('master')
                 .map(async (node) => {
                     return node.keys(`${this.namespace}*`);
