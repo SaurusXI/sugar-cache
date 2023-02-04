@@ -77,10 +77,11 @@ export class SugarCache {
 
     /**
      * Reads an element stored at a key
-     * @param key Cache key for the element you're trying to fetch
+     * @param keys Cache keys for the element you're trying to fetch
      * @returns The object stored at the given key; `null` if no such object is found
      */
-    public get = async (key: string) => {
+    public get = async (keys: string[]) => {
+        const key = keys.join(':');
         const cacheKey = this.transformIntoCacheKey(key);
 
         const result = await this.redisTransaction()
@@ -109,10 +110,11 @@ export class SugarCache {
 
     /**
      * Upserts a value in the cache at the specified key
-     * @param key Cache key at which the value has to be stored
+     * @param keys Cache keys at which the value has to be stored
      * @param value The value to be stored at the key
      */
-    public set = async (key: string, value: any, ttl: TTL) => {
+    public set = async (keys: string[], value: any, ttl: TTL) => {
+        const key = keys.join(':');
         const cacheKey = this.transformIntoCacheKey(key);
 
         const result = await this.redisTransaction()
@@ -130,9 +132,10 @@ export class SugarCache {
 
     /**
      * Deletes a value from the cache
-     * @param key Key of value to be removed
+     * @param keys Key of value to be removed
      */
-    public del = async (key: string) => {
+    public del = async (keys: string[]) => {
+        const key = keys.join(':');
         const cacheKey = this.transformIntoCacheKey(key);
         
         const result = await this.redisTransaction()
@@ -198,14 +201,14 @@ export class SugarCache {
                 const cacheKey = cacheKeyArgs.join(':');
 
                 cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] Checking key ${cacheKey} in cache`);
-                const cachedResult = await cacheInstance.get(cacheKey);
+                const cachedResult = await cacheInstance.get([cacheKey]);
                 if (cachedResult !== null) {
                     cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] result for key ${cacheKey} found in cache. Returning...`);
                     return cachedResult
                 };
 
                 const result = await currentFn.apply(this, arguments);
-                await cacheInstance.set(cacheKey, result, ttl)
+                await cacheInstance.set([cacheKey], result, ttl)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to set value to cache - ${err}`) });
 
                 cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] result for key ${cacheKey} set in cache`)
@@ -236,7 +239,7 @@ export class SugarCache {
                 const cacheKeyArgs = keys.map(k => namedArguments[k]);
                 const cacheKey = cacheKeyArgs.join(':');
 
-                await cacheInstance.del(cacheKey)
+                await cacheInstance.del([cacheKey])
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to delete value from cache - ${err}`)});
 
                 cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] removed key ${cacheKey} from cache`)
