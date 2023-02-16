@@ -4,8 +4,8 @@
 
 import { Cluster, Redis } from "ioredis";
 import readFunctionParams from '@captemulation/get-parameter-names';
-import { dummyLogger, Logger } from 'ts-log';
-import { RedisConstants, RedisExpiryModes } from "./constants";
+import { dummyLogger, Logger } from './types/logging';
+import { RedisExpiryModes } from "./constants";
 import { CacheResultParams, CreateCacheOptions, InvalidateFromCacheParams, TTL } from "./types";
 
 export class SugarCache {

@@ -26,8 +26,7 @@
     "test": "jest --runInBand --forceExit"
   },
   "dependencies": {
-    "@captemulation/get-parameter-names": "^1.4.2",
-    "ts-log": "^2.2.5"
+    "@captemulation/get-parameter-names": "^1.4.2"
   },
   "repository": {
     "type": "git",
