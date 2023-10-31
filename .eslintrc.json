@@ -1,6 +1,5 @@
 {
     "env": {
-        "browser": true,
         "es2021": true
     },
     "extends": [
@@ -14,8 +13,31 @@
     "plugins": [
         "@typescript-eslint"
     ],
-    "indent": ["error", 4],
     "rules": {
+        "indent": ["error", 4],
+        "import/extensions": [
+            "error",
+            "ignorePackages",
+            {
+                "ts": "never"
+            }
+        ],
+        "no-unused-vars": [
+            "error",
+            {
+                "varsIgnorePattern": "_",
+                "argsIgnorePattern": "_"
+            }
+        ],
+        "prefer-rest-params": 0,
+        "func-names": 0
     },
-    "include": ["lib/**/*.ts"]
+    "settings": {
+        "import/resolver": {
+            "node": {
+                "extensions": [".ts"]
+            }
+        }
+    },
+    "root": true
 }
