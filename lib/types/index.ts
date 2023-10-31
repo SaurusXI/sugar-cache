@@ -3,6 +3,14 @@
  */
 export type CreateCacheOptions = {
     namespace?: string;
+    inMemoryCache?: {
+        enable?: boolean,
+        /**
+         * The in-memory cache will not write to cache if this threshold is breached
+         * This is done to avoid over-consumption of application memory for caching.
+         */
+        memoryThresholdPercentage: number,
+    }
 }
 
 /**
@@ -13,9 +21,20 @@ export type TTL = number | {
     unit: 'milliseconds' | 'seconds' | 'minutes' | 'hours' | 'days'
 };
 
-export type CacheResultParams = {
+/**
+ * Granular TTL specification for memory and redis caches
+ */
+export type TTLOptions = {
+    redis: TTL,
+    memory: TTL,
+};
+
+export type CacheFnResultParams = {
+    /**
+     * Ordered list of identifiers for value in cache
+     */
     keyVariables: string[];
-    ttl: TTL;
+    ttl: TTL | TTLOptions;
 }
 
 export type InvalidateFromCacheParams = {
