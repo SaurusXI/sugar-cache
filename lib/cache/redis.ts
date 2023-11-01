@@ -100,4 +100,51 @@ export default class RedisCache extends BaseCache {
 
         this.logger.debug(`[SugarCache:${this.namespace}] Deletion keys removed`);
     };
+
+    public batchGet = async (keys: string[][]) => {
+        let pipe = this.redis.pipeline();
+        keys.forEach((key) => {
+            const cacheKey = this.transformIntoCacheKey(key.join(':'));
+            pipe = pipe.get(cacheKey);
+        });
+
+        const results = (await pipe.exec()).map((redisReply) => {
+            try {
+                return JSON.parse(redisReply[1] as string) ?? null;
+            } catch (err) {
+                // NOTE(Shantanu): This case should only arise if no value is set
+                return null;
+            }
+        });
+        return results;
+    };
+
+    public batchSet = async (keys: string[][], values: any[], ttl: TTL) => {
+        if (keys.length !== values.length) {
+            throw new Error('Length of keys doesn\'t match length of values');
+        }
+        let pipe = this.redis.pipeline();
+        keys.forEach((key, idx) => {
+            const cacheKey = this.transformIntoCacheKey(key.join(':'));
+            const value = JSON.stringify(values[idx]);
+            pipe = pipe.set(
+                cacheKey,
+                value,
+                RedisExpiryModes.Milliseconds,
+                this.computeTTLInMilliseconds(ttl),
+            );
+        });
+
+        await pipe.exec();
+    };
+
+    public batchDel = async (keys: string[][]) => {
+        let pipe = this.redis.pipeline();
+        keys.forEach((key) => {
+            const cacheKey = this.transformIntoCacheKey(key.join(':'));
+            pipe = pipe.del(cacheKey);
+        });
+
+        await pipe.exec();
+    };
 }

@@ -89,6 +89,19 @@ export default class SugarCache {
         await this.cache.clear();
     };
 
+    public batchGet = async (keys: string[][]) => this.cache.batchGet(keys);
+
+    public batchDel = async (keys: string[][]) => this.cache.batchDel(keys);
+
+    public batchSet = async (keys: string[][], values: any[], ttl: TTL | TTLOptions) => {
+        if ((ttl as TTLOptions).redis) {
+            const ttlOptions = ttl as TTLOptions;
+            return this.cache.batchSet(keys, values, ttlOptions);
+        }
+        const ttlTyped = ttl as TTL;
+        return this.cache.batchSet(keys, values, { redis: ttlTyped, memory: ttlTyped });
+    };
+
     // ----------- Decorator Methods -----------
 
     /**

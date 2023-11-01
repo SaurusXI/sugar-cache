@@ -1,6 +1,6 @@
 /* eslint-disable no-param-reassign */
 import Redis, { Cluster } from 'ioredis';
-import { CreateCacheOptions, TTL } from '../types';
+import { CreateCacheOptions, TTLOptions } from '../types';
 import { Logger } from '../types/logging';
 import InMemoryCache from './memory';
 import RedisCache from './redis';
@@ -27,7 +27,7 @@ export default class MultilevelCache {
     public set = async (
         keys: string[],
         value: any,
-        ttls: { redis: TTL, memory: TTL },
+        ttls: TTLOptions,
     ) => Promise.all([
         this.redisCache.set(keys, value, ttls.redis),
         this.inMemoryCache.set(keys, value, ttls.memory),
@@ -38,4 +38,40 @@ export default class MultilevelCache {
     ) => Promise.all([this.redisCache.del(keys), this.inMemoryCache.del(keys)]);
 
     public clear = async () => Promise.all([this.redisCache.clear(), this.inMemoryCache.clear()]);
+
+    public batchGet = async (keys: string[][]) => {
+        const inMemoryResults = keys.map(this.inMemoryCache.get);
+
+        const redisQueryKeys = keys.filter((_, idx) => inMemoryResults[idx] === null);
+        const redisCacheResults = await this.redisCache.batchGet(redisQueryKeys);
+
+        let redisIdx = 0;
+        let out: any[];
+        inMemoryResults.forEach((val, i) => {
+            if (val === null && redisIdx < redisCacheResults.length) {
+                out[i] = redisCacheResults[redisIdx];
+                redisIdx += 1;
+            } else {
+                out[i] = val;
+            }
+        });
+
+        return out;
+    };
+
+    public batchSet = async (keys: string[][], values: any[], ttls: TTLOptions) => {
+        if (keys.length !== values.length) {
+            throw new Error('Length of keys and values is not the same');
+        }
+
+        keys.forEach((key, idx) => {
+            this.inMemoryCache.set(key, values[idx], ttls.memory);
+        });
+        await this.redisCache.batchSet(keys, values, ttls.redis);
+    };
+
+    public batchDel = async (keys: string[][]) => {
+        keys.forEach(this.inMemoryCache.del);
+        await this.redisCache.batchDel(keys);
+    };
 }
