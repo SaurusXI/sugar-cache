@@ -89,10 +89,26 @@ export default class SugarCache {
         await this.cache.clear();
     };
 
+    /**
+     * Performs an efficient batched read operation on the keys provided.
+     * @param keys List of keys to fetch results for
+     * @returns Values set at the given keys. Returns `null` for each key that isn't set
+     */
     public batchGet = async (keys: string[][]) => this.cache.batchGet(keys);
 
+    /**
+     * Performs an efficient batched delete operation on the keys provided.
+     * @param keys List of keys to perform delete for.
+     */
     public batchDel = async (keys: string[][]) => this.cache.batchDel(keys);
 
+    /**
+     * Performs an efficient batched set operation for the key-value pairs provided
+     * @param keys List of keys
+     * @param values Ordered list of values.
+     * Every value is expected to positionally map to an element in `keys`
+     * @param ttl Time-to-live for values in cache
+     */
     public batchSet = async (keys: string[][], values: any[], ttl: TTL | TTLOptions) => {
         if ((ttl as TTLOptions).redis) {
             const ttlOptions = ttl as TTLOptions;
