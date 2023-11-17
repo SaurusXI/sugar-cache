@@ -40,6 +40,10 @@ export default class RedisCache extends Cache {
             this.logger.debug(`[SugarCache:${this.namespace}] Error encountered in parsing - ${err}`);
             output = null;
         }
+
+        if (output) {
+            this.logger.debug(`[SugarCache:${this.namespace}] key ${cacheKey} found in redis, returning..`);
+        }
         return output;
     };
 
@@ -63,6 +67,8 @@ export default class RedisCache extends Cache {
                 throw new Error('[SugarCache] Internal redis error');
             }
         });
+
+        this.logger.debug(`[SugarCache:${this.namespace}] key ${cacheKey} set in redis`);
     };
 
     public del = async (keys: string[]) => {
@@ -79,6 +85,8 @@ export default class RedisCache extends Cache {
                 throw new Error('[SugarCache] Internal redis error');
             }
         });
+
+        this.logger.debug(`[SugarCache:${this.namespace}] removed key ${cacheKey} from redis`);
     };
 
     public clear = async () => {

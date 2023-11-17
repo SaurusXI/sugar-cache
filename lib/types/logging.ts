@@ -2,10 +2,10 @@
  * Represents a generic logger that could be a simple console, bunyan etc.
  */
 export interface Logger {
-    debug(message?: any, ...optionalParams: any[]): void;
-    info(message?: any, ...optionalParams: any[]): void;
-    warn(message?: any, ...optionalParams: any[]): void;
-    error(message?: any, ...optionalParams: any[]): void;
+    debug(_message?: any, ..._optionalParams: any[]): void;
+    info(_message?: any, ..._optionalParams: any[]): void;
+    warn(_message?: any, ..._optionalParams: any[]): void;
+    error(_message?: any, ..._optionalParams: any[]): void;
     [x: string]: any;
   }
 
