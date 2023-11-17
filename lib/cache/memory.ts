@@ -1,9 +1,9 @@
 import { memoryUsage } from 'node:process';
 import { CreateCacheOptions, TTL } from '../types';
 import { Logger } from '../types/logging';
-import BaseCache from './base';
+import Cache from './base';
 
-export default class InMemoryCache extends BaseCache {
+export default class InMemoryCache extends Cache {
     private cache: Map<string, any>;
 
     private enabled: boolean;

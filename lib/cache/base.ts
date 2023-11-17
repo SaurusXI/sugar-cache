@@ -2,7 +2,7 @@ import readFunctionParams from '@captemulation/get-parameter-names';
 import { dummyLogger, Logger } from '../types/logging';
 import { TTL } from '../types';
 
-export default abstract class BaseCache {
+export default abstract class Cache {
     protected namespace: string;
 
     protected readonly logger: Logger;

@@ -2,9 +2,9 @@ import { Cluster, Redis } from 'ioredis';
 import { RedisExpiryModes } from '../constants';
 import { CreateCacheOptions, TTL } from '../types';
 import { Logger } from '../types/logging';
-import BaseCache from './base';
+import Cache from './base';
 
-export default class RedisCache extends BaseCache {
+export default class RedisCache extends Cache {
     private redis: Redis | Cluster;
 
     constructor(redis: Redis | Cluster, options: CreateCacheOptions, logger?: Logger) {

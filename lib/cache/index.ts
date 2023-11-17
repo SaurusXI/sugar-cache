@@ -39,7 +39,7 @@ export default class MultilevelCache {
 
     public clear = async () => Promise.all([this.redisCache.clear(), this.inMemoryCache.clear()]);
 
-    public batchGet = async (keys: string[][]) => {
+    public mget = async (keys: string[][]) => {
         const inMemoryResults = keys.map(this.inMemoryCache.get);
 
         const redisQueryKeys = keys.filter((_, idx) => inMemoryResults[idx] === null);
@@ -59,7 +59,7 @@ export default class MultilevelCache {
         return out;
     };
 
-    public batchSet = async (keys: string[][], values: any[], ttls: TTLOptions) => {
+    public mset = async (keys: string[][], values: any[], ttls: TTLOptions) => {
         if (keys.length !== values.length) {
             throw new Error('Length of keys and values is not the same');
         }
@@ -70,7 +70,7 @@ export default class MultilevelCache {
         await this.redisCache.batchSet(keys, values, ttls.redis);
     };
 
-    public batchDel = async (keys: string[][]) => {
+    public mdel = async (keys: string[][]) => {
         keys.forEach(this.inMemoryCache.del);
         await this.redisCache.batchDel(keys);
     };
