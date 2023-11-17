@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc",
-    "test": "jest --runInBand --forceExit",
+    "test": "jest --forceExit",
     "lint": "eslint . --ext .ts --ext .js",
     "lint:fix": "eslint . --ext .ts --ext .js --fix"
   },

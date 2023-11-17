@@ -11,7 +11,6 @@ describe('Batched operations', () => {
 
     const mockCacheVals = [...Array(100).keys()].map((x) => ({ key: `foo-${x}`, val: `bar-${x}` }));
 
-
     it('mset values can be get individually', async () => {
         await cache.clear();
         const keys = mockCacheVals.map((v) => [v.key]).slice(0, 2);
