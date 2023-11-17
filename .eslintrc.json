@@ -30,7 +30,8 @@
             }
         ],
         "prefer-rest-params": 0,
-        "func-names": 0
+        "func-names": 0,
+        "no-underscore-dangle": "off"
     },
     "settings": {
         "import/resolver": {

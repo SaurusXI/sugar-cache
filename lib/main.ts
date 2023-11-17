@@ -8,17 +8,33 @@ import readFunctionParams from '@captemulation/get-parameter-names';
 import MultilevelCache from './cache';
 import { dummyLogger, Logger } from './types/logging';
 import {
-    CacheFnResultParams, CreateCacheOptions, InvalidateFromCacheParams, TTL, TTLOptions,
+    CacheFnResultParams,
+    CreateCacheOptions,
+    InvalidateFromCacheParams,
+    KeyVariables,
+    TTL,
+    TTLOptions,
 } from './types';
 
-export default class SugarCache {
+type KeysType<KeyName extends string> = {
+    [_Property in KeyName]: string
+};
+
+export default class SugarCache<
+    KeyName extends string,
+    Keys = KeysType<KeyName>,
+> {
     private namespace: string;
 
     private cache: MultilevelCache;
 
     private readonly logger: Logger;
 
-    constructor(redis: Redis | Cluster, options: CreateCacheOptions, logger: Logger = dummyLogger) {
+    constructor(
+        redis: Redis | Cluster,
+        options: CreateCacheOptions,
+        logger: Logger = dummyLogger,
+    ) {
         this.logger = logger;
         this.cache = new MultilevelCache(options, redis, logger);
         this.namespace = this.cache.namespace;
@@ -38,10 +54,16 @@ export default class SugarCache {
         const params = readFunctionParams(targetFn);
         const namedArguments = {};
         Array.from(args).forEach((arg, idx) => {
-            namedArguments[params[idx]] = arg;
+            namedArguments[params[idx]] = arg as string;
         });
         return namedArguments;
     };
+
+    // eslint-disable-next-line class-methods-use-this
+    private flattenKeysIntoKeyList = (keys: Keys) => Object
+        .entries(keys)
+        .sort((keyA, keyB) => keyA[0].localeCompare(keyB[0]))
+        .map(([_, val]) => val as string);
 
     // ----------- Public API Methods -----------
 
@@ -50,7 +72,9 @@ export default class SugarCache {
      * @param keys Cache keys for the element you're trying to fetch
      * @returns The object stored at the given key; `null` if no such object is found
      */
-    public get = async (keys: string[]) => this.cache.get(keys);
+    public get = async (
+        keys: Keys,
+    ) => this.cache.get(this.flattenKeysIntoKeyList(keys));
 
     /**
      * Upserts a value in the cache at the specified key
@@ -60,23 +84,26 @@ export default class SugarCache {
      * You can specify different TTLs for in-memory and redis caches
      */
     public set = async (
-        keys: string[],
+        keys: Keys,
         value: any,
         ttl: TTL | TTLOptions,
     ) => {
+        const flattenedKeyList = this.flattenKeysIntoKeyList(keys);
         if ((ttl as TTLOptions).redis) {
             const ttlOptions = ttl as TTLOptions;
-            return this.cache.set(keys, value, ttlOptions);
+            return this.cache.set(flattenedKeyList, value, ttlOptions);
         }
         const ttlTyped = ttl as TTL;
-        return this.cache.set(keys, value, { memory: ttlTyped, redis: ttlTyped });
+        return this.cache.set(flattenedKeyList, value, { memory: ttlTyped, redis: ttlTyped });
     };
 
     /**
      * Deletes a value from the cache
      * @param keys Key of value to be removed
      */
-    public del = async (keys: string[]) => this.cache.del(keys);
+    public del = async (
+        keys: Keys,
+    ) => this.cache.del(this.flattenKeysIntoKeyList(keys));
 
     /**
      * Deletes all values in the cache
@@ -109,49 +136,82 @@ export default class SugarCache {
      * Every value is expected to positionally map to an element in `keys`
      * @param ttl Time-to-live for values in cache
      */
-    public mset = async (keys: string[][], values: any[], ttl: TTL | TTLOptions) => {
+    public mset = async (
+        keys: Keys[],
+        values: any[],
+        ttl: TTL | TTLOptions,
+    ) => {
+        const flattenedKeyLists = keys.map(this.flattenKeysIntoKeyList);
         if ((ttl as TTLOptions).redis) {
             const ttlOptions = ttl as TTLOptions;
-            return this.cache.mset(keys, values, ttlOptions);
+            return this.cache.mset(flattenedKeyLists, values, ttlOptions);
         }
         const ttlTyped = ttl as TTL;
-        return this.cache.mset(keys, values, { redis: ttlTyped, memory: ttlTyped });
+        return this.cache.mset(flattenedKeyLists, values, {
+            redis: ttlTyped,
+            memory: ttlTyped,
+        });
     };
 
     // ----------- Decorator Methods -----------
+
+    // eslint-disable-next-line class-methods-use-this
+    private reduceKeyVariablesToKeys(keyVariables: KeyVariables<Keys>, namedArgs: any) {
+        const out = {} as Keys;
+
+        if (Object.keys(keyVariables).length !== Object.keys(namedArgs).length) {
+            throw new Error('Invalid arguments passed to function');
+        }
+
+        Object.keys(keyVariables).forEach((keyName) => {
+            const variableName = keyVariables[keyName] as string;
+            const variableValue = namedArgs[variableName];
+            if (variableValue === undefined) {
+                throw new Error('Invalid arguments passed to function');
+            }
+
+            out[keyName] = variableName;
+        });
+
+        return out;
+    }
+
+    private getKeysFromFunc(args: IArguments, originalFn: any, keyVariables: KeyVariables<Keys>) {
+        const namedArguments = SugarCache.transformIntoNamedArgs(args, originalFn);
+        return this.reduceKeyVariablesToKeys(
+            keyVariables,
+            namedArguments,
+        );
+    }
 
     /**
      * Decorator to read a value from cache if it exists
      * If it doesn't the target function is called and the return value is set on cache
      */
-    public cacheFnResult(params: CacheFnResultParams) {
+    public cacheFnResult(
+        params: CacheFnResultParams<Keys>,
+    ) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             const originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { keyVariables: keys, ttl } = params;
+            const { keyVariables, ttl } = params;
 
-            cacheInstance.validateKeys(originalFn, keys);
+            cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
 
             // eslint-disable-next-line no-param-reassign
             descriptor.value = async function () {
-                const namedArguments = SugarCache.transformIntoNamedArgs(arguments, originalFn);
-                const cacheKeyArgs = keys.map((k) => namedArguments[k]);
-                const cacheKey = cacheKeyArgs.join(':');
+                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn, keyVariables);
 
-                cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] Checking key ${cacheKey} in cache`);
-                const cachedResult = await cacheInstance.get([cacheKey]);
+                const cachedResult = await cacheInstance.get(keys);
                 if (cachedResult !== null) {
-                    cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] result for key ${cacheKey} found in cache. Returning...`);
                     return cachedResult;
                 }
 
                 const result = await currentFn.apply(this, arguments);
-                await cacheInstance.set([cacheKey], result, ttl)
+                await cacheInstance.set(keys, result, ttl)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to set value to cache - ${err}`); });
-
-                cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] result for key ${cacheKey} set in cache`);
 
                 return result;
             };
@@ -162,26 +222,24 @@ export default class SugarCache {
     /**
      * Decorator to remove value from cache
      */
-    public invalidateFromCache(params: InvalidateFromCacheParams) {
+    public invalidateFromCache(
+        params: InvalidateFromCacheParams<Keys>,
+    ) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             const originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { keyVariables: keys } = params;
+            const { keyVariables } = params;
 
-            cacheInstance.validateKeys(originalFn, keys);
+            cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
 
             descriptor.value = async function () {
-                const namedArguments = SugarCache.transformIntoNamedArgs(arguments, originalFn);
+                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn, keyVariables);
 
-                const cacheKeyArgs = keys.map((k) => namedArguments[k]);
-                const cacheKey = cacheKeyArgs.join(':');
-
-                await cacheInstance.del([cacheKey])
+                await cacheInstance.del(keys)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to delete value from cache - ${err}`); });
 
-                cacheInstance.logger.debug(`[SugarCache:${cacheInstance.namespace}] removed key ${cacheKey} from cache`);
                 const result = await currentFn.apply(this, arguments);
 
                 return result;

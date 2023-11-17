@@ -29,14 +29,18 @@ export type TTLOptions = {
     memory: TTL,
 };
 
-export type CacheFnResultParams = {
+export type KeyVariables<T> = {
+    [_Property in keyof T]: string
+};
+
+export type CacheFnResultParams<T> = {
     /**
      * Ordered list of identifiers for value in cache
      */
-    keyVariables: string[];
+    keyVariables: KeyVariables<T>;
     ttl: TTL | TTLOptions;
 }
 
-export type InvalidateFromCacheParams = {
-    keyVariables: string[];
+export type InvalidateFromCacheParams<T> = {
+    keyVariables: KeyVariables<T>;
 }
