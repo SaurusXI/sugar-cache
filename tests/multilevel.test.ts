@@ -105,7 +105,7 @@ describe('Multilevel caching', () => {
     Controller.mockLatency * 2)
 })
 
-describe('Memory threshold test', async () => {
+describe('Memory threshold test', () => {
     const cacheWithZeroMemoryThreshold = new SugarCache(new MockRedis() as unknown as Redis, {
         namespace: 'zero-memory-threshold',
         inMemoryCache: { memoryThresholdPercentage: 0, enable: true }
