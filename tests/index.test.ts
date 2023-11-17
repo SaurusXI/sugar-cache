@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { SugarCache } from '../lib/main';
+import SugarCache from '../lib/main';
 
 describe('Functional tests', () => {
     const redis = new Redis({
@@ -119,6 +119,7 @@ describe('Functional tests', () => {
             }, mockLatency);
         });
     });
+
     describe('Basic cache with redis cluster', () => {
         const redisCluster = new Redis.Cluster([{ host: '127.0.0.1', port: 6380 }]);
         const cacheBasic = new SugarCache(redisCluster, { namespace: 'cluster' });
