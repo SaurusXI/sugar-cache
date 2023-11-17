@@ -1,14 +1,9 @@
 import Redis from "ioredis";
 import SugarCache from "../lib/main";
+import { logger } from './index.test';
 
 const resourceId = 'resource-UUID';
 
-const logger = {
-    info: (message: string, ...args: any[]) => console.log(message),
-    debug: (message: string, ...args: any[]) => console.log(message),
-    warn: (message: string, ...args: any[]) => console.log(message),
-    error: (message: string, ...args: any[]) => console.log(message),
-}
 const redis = new Redis({
     port: 6379,
     host: '127.0.0.1',
@@ -17,7 +12,7 @@ const redis = new Redis({
 const mockRedisReturnVal = 'REDIS_VAL';
 
 describe('Multilevel caching', () => {
-    const cacheWithMockedRedis = new SugarCache(redis, { namespace: 'multilevel', inMemoryCache: { enable: true, memoryThresholdPercentage: 0.9} }, logger);
+    const cacheWithMockedRedis = new SugarCache(redis, { namespace: 'multilevel', inMemoryCache: { enable: true, memoryThresholdPercentage: 0.9} });
 
     class Controller {
         static mockLatency = 500;
@@ -33,7 +28,6 @@ describe('Multilevel caching', () => {
             ttl: 100
         })
         async get_fixedTTL(resourceId: string) {
-            console.log('executing function');
             await new Promise((resolve) => setTimeout(resolve, Controller.mockLatency));
             return Controller.returnVal; 
         }
@@ -74,8 +68,6 @@ describe('Multilevel caching', () => {
         const result = await controller.get_fixedTTL(resourceId);
         // Value is returned from memory, so should be the actual value being returned by controller
         expect(result).toStrictEqual(Controller.returnVal);
-
-        console.log('Test should complete here');
     },
     // Since there are two controller calls and the second one is cached, upper bound is 2*mockLatency
     Controller.mockLatency * 2)

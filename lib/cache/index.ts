@@ -46,7 +46,7 @@ export default class MultilevelCache {
         const redisCacheResults = await this.redisCache.batchGet(redisQueryKeys);
 
         let redisIdx = 0;
-        let out: any[];
+        const out: any[] = [];
         inMemoryResults.forEach((val, i) => {
             if (val === null && redisIdx < redisCacheResults.length) {
                 out[i] = redisCacheResults[redisIdx];

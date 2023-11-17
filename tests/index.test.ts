@@ -1,6 +1,13 @@
 import Redis from 'ioredis';
 import SugarCache from '../lib/main';
 
+export const logger = {
+    info: (message: string, ...args: any[]) => console.log(message),
+    debug: (message: string, ...args: any[]) => console.log(message),
+    warn: (message: string, ...args: any[]) => console.log(message),
+    error: (message: string, ...args: any[]) => console.log(message),
+}
+
 describe('Functional tests', () => {
     const redis = new Redis({
         port: 6379,

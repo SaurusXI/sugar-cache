@@ -1,5 +1,6 @@
 import Redis from "ioredis"
 import SugarCache from "../lib/main";
+import { logger } from './index.test';
 
 describe('Batched operations', () => {
     const redis = new Redis({
@@ -58,8 +59,8 @@ describe('Batched operations', () => {
         const cachedVals = await cache.mget(keys);
         expect(cachedVals).toStrictEqual([null, null]);
 
-        const v0 = cache.get(keys[0]);
-        const v1 = cache.get(keys[1]);
+        const v0 = await cache.get(keys[0]);
+        const v1 = await cache.get(keys[1]);
 
         expect(v0).toBeNull();
         expect(v1).toBeNull();
