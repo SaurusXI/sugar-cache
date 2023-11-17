@@ -105,7 +105,7 @@ describe('Memory threshold test', () => {
     const cacheWithZeroMemoryThreshold = new SugarCache(redis, {
         namespace: 'zero-memory-threshold',
         inMemoryCache: { memoryThresholdPercentage: 0, enable: true }
-    }, logger);
+    });
 
     it('When memory threshold is exceeded, value is read from redis', async () => {
         const cachedResult = 'IN_MEMORY_RESULT';
