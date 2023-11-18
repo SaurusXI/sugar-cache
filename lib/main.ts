@@ -30,14 +30,19 @@ export default class SugarCache<
 
     private readonly logger: Logger;
 
+    private hashtags: Set<KeyName>;
+
     constructor(
         redis: Redis | Cluster,
-        options: CreateCacheOptions,
+        options: CreateCacheOptions<KeyName>,
         logger: Logger = dummyLogger,
     ) {
         this.logger = logger;
         this.cache = new MultilevelCache(options, redis, logger);
         this.namespace = this.cache.namespace;
+
+        const { hashtags } = options;
+        this.hashtags = new Set(hashtags);
     }
 
     private validateKeys = (targetFn: any, cacheKeys: string[]) => {
@@ -62,8 +67,22 @@ export default class SugarCache<
     // eslint-disable-next-line class-methods-use-this
     private flattenKeysIntoKeyList = (keys: Keys) => Object
         .entries(keys)
+        // Sort so we always get keys in the same order
         .sort((keyA, keyB) => keyA[0].localeCompare(keyB[0]))
         .map(([_, val]) => val as string);
+
+    private wrapValuesInHashtags = (keys: Keys) => {
+        Object.keys(keys).forEach((key: KeyName) => {
+            if (this.hashtags.has(key)) {
+                keys[key] = `{${keys[key]}}` as any;
+            }
+        });
+        return keys;
+    };
+
+    private transformKeysIntoKeyList = (keys: Keys) => this.flattenKeysIntoKeyList(
+        this.wrapValuesInHashtags(keys),
+    );
 
     // ----------- Public API Methods -----------
 
@@ -74,7 +93,7 @@ export default class SugarCache<
      */
     public get = async (
         keys: Keys,
-    ) => this.cache.get(this.flattenKeysIntoKeyList(keys));
+    ) => this.cache.get(this.transformKeysIntoKeyList(keys));
 
     /**
      * Upserts a value in the cache at the specified key
@@ -88,7 +107,7 @@ export default class SugarCache<
         value: any,
         ttl: TTL | TTLOptions,
     ) => {
-        const flattenedKeyList = this.flattenKeysIntoKeyList(keys);
+        const flattenedKeyList = this.transformKeysIntoKeyList(keys);
         if ((ttl as TTLOptions).redis) {
             const ttlOptions = ttl as TTLOptions;
             return this.cache.set(flattenedKeyList, value, ttlOptions);
@@ -103,7 +122,7 @@ export default class SugarCache<
      */
     public del = async (
         keys: Keys,
-    ) => this.cache.del(this.flattenKeysIntoKeyList(keys));
+    ) => this.cache.del(this.transformKeysIntoKeyList(keys));
 
     /**
      * Deletes all values in the cache
@@ -121,13 +140,13 @@ export default class SugarCache<
      * @param keys List of keys to fetch results for
      * @returns Values set at the given keys. Returns `null` for each key that isn't set
      */
-    public mget = async (keys: Keys[]) => this.cache.mget(keys.map(this.flattenKeysIntoKeyList));
+    public mget = async (keys: Keys[]) => this.cache.mget(keys.map(this.transformKeysIntoKeyList));
 
     /**
      * Performs an efficient batched delete operation on the keys provided.
      * @param keys List of keys to perform delete for.
      */
-    public mdel = async (keys: Keys[]) => this.cache.mdel(keys.map(this.flattenKeysIntoKeyList));
+    public mdel = async (keys: Keys[]) => this.cache.mdel(keys.map(this.transformKeysIntoKeyList));
 
     /**
      * Performs an efficient batched set operation for the key-value pairs provided
@@ -141,7 +160,7 @@ export default class SugarCache<
         values: any[],
         ttl: TTL | TTLOptions,
     ) => {
-        const flattenedKeyLists = keys.map(this.flattenKeysIntoKeyList);
+        const flattenedKeyLists = keys.map(this.transformKeysIntoKeyList);
         if ((ttl as TTLOptions).redis) {
             const ttlOptions = ttl as TTLOptions;
             return this.cache.mset(flattenedKeyLists, values, ttlOptions);
@@ -196,7 +215,7 @@ export default class SugarCache<
             const originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { keyVariables, ttl } = params;
+            const { variableNames: keyVariables, ttl } = params;
 
             cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
 
@@ -230,7 +249,7 @@ export default class SugarCache<
             const originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { keyVariables } = params;
+            const { variableNames: keyVariables } = params;
 
             cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
 

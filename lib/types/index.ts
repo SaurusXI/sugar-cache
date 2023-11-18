@@ -1,16 +1,23 @@
 /**
  * @param namespace Namespace of cache. All caches without this value set share a default namespace
  */
-export type CreateCacheOptions = {
+export type CreateCacheOptions<KeyName> = {
     namespace?: string;
     inMemoryCache?: {
         enable?: boolean,
         /**
          * The in-memory cache will not write to cache if this threshold is breached
          * This is done to avoid over-consumption of application memory for caching.
+         * If not specified, the default value is 50%
          */
-        memoryThresholdPercentage: number,
-    }
+        memoryThresholdPercentage?: number,
+    },
+    /**
+     * Keys to use with hashtags. This is required to avoid `CROSS SLOT` redis errors
+     * when using batched operations (`mset`, `mget`, `mdel`) on a clustered redis connection.
+     * https://redis.io/docs/reference/cluster-spec/#hash-tags
+     */
+    hashtags?: KeyName[],
 }
 
 /**
@@ -35,12 +42,15 @@ export type KeyVariables<T> = {
 
 export type CacheFnResultParams<T> = {
     /**
-     * Ordered list of identifiers for value in cache
+     * Object mapping function arguments to cache keys
      */
-    keyVariables: KeyVariables<T>;
+    variableNames: KeyVariables<T>;
     ttl: TTL | TTLOptions;
 }
 
 export type InvalidateFromCacheParams<T> = {
-    keyVariables: KeyVariables<T>;
+    /**
+     * Object mapping function arguments to cache keys
+     */
+    variableNames: KeyVariables<T>;
 }

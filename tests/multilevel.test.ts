@@ -24,7 +24,7 @@ describe('Multilevel caching', () => {
         static returnVal = 'RETURN_VAL';
 
         @cacheWithMockedRedis.cacheFnResult({
-            keyVariables: { resourceId: 'resourceId' },
+            variableNames: { resourceId: 'resourceId' },
             ttl: 100
         })
         async get_fixedTTL(resourceId: string) {
@@ -33,7 +33,7 @@ describe('Multilevel caching', () => {
         }
 
         @cacheWithMockedRedis.cacheFnResult({
-            keyVariables: { resourceId: 'resourceId' },
+            variableNames: { resourceId: 'resourceId' },
             ttl: {
                 memory: Controller.lowTTL,
                 redis: Controller.highTTL,
@@ -45,7 +45,7 @@ describe('Multilevel caching', () => {
         }
 
         @cacheWithMockedRedis.cacheFnResult({
-            keyVariables: { resourceId: 'resourceId' },
+            variableNames: { resourceId: 'resourceId' },
             ttl: {
                 memory: Controller.highTTL,
                 redis: Controller.lowTTL,

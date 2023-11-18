@@ -70,7 +70,7 @@ describe('Functional tests', () => {
 
             class Controller {
                 @cacheBasic.cacheFnResult({
-                    keyVariables: {
+                    variableNames: {
                         id: 'resourceId',
                         category: 'resourceCategory',
                     },
@@ -83,7 +83,7 @@ describe('Functional tests', () => {
                 }
 
                 @cacheBasic.invalidateFromCache({
-                    keyVariables: {
+                    variableNames: {
                         id: 'resourceId',
                         category: 'resourceCategory'
                     },
@@ -92,8 +92,8 @@ describe('Functional tests', () => {
                     return { res: resourceCategory + resourceId };
                 }
 
-                @secondCacheBasic.cacheFnResult({ keyVariables: { category: 'orgId'}, ttl })
-                @cacheBasic.cacheFnResult({ keyVariables: { id: 'orgId', category: 'resourceId' }, ttl })
+                @secondCacheBasic.cacheFnResult({ variableNames: { category: 'orgId'}, ttl })
+                @cacheBasic.cacheFnResult({ variableNames: { id: 'orgId', category: 'resourceId' }, ttl })
                 async compoundRead(resourceId: string, orgId: string) {
                     // Introduce mock latency which will not happen when the cache is hit
                     await new Promise((resolve) => setTimeout(resolve, mockLatency));
