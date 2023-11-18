@@ -1,15 +1,18 @@
 import readFunctionParams from '@captemulation/get-parameter-names';
 import { dummyLogger, Logger } from '../types/logging';
-import { TTL } from '../types';
+import { PrometheusClient, TTL } from '../types';
 
 export default abstract class Cache {
     protected namespace: string;
 
     protected readonly logger: Logger;
 
-    constructor(namespace: string, logger: Logger = dummyLogger) {
+    protected prometheus: PrometheusClient;
+
+    constructor(namespace: string, prometheus?: PrometheusClient, logger: Logger = dummyLogger) {
         this.namespace = namespace;
         this.logger = logger;
+        this.prometheus = prometheus;
     }
 
     protected transformIntoCacheKey = (key: string) => `${this.namespace}:${key}`;

@@ -1,4 +1,5 @@
 import { memoryUsage } from 'node:process';
+import { Summary } from 'prom-client';
 import { CreateCacheOptions, TTL } from '../types';
 import { Logger } from '../types/logging';
 import Cache from './base';
@@ -12,13 +13,19 @@ export default class InMemoryCache extends Cache {
 
     private memUsageThreshold: number;
 
+    private cacheHitRatio: Summary;
+
     constructor(options: CreateCacheOptions<any>, logger?: Logger) {
-        const { namespace, inMemoryCache: inMemoryCacheOptions } = options;
-        super(namespace, logger);
+        const { namespace, inMemoryCache: inMemoryCacheOptions, prometheusClient } = options;
+        super(namespace, prometheusClient, logger);
         this.enabled = inMemoryCacheOptions?.enable ?? true;
         this.memUsageThreshold = inMemoryCacheOptions?.memoryThresholdPercentage ?? 0.5;
         this.cache = new Map<string, any>();
         this.ttlTimers = new Map();
+        this.cacheHitRatio = new prometheusClient.Summary({
+            name: 'sugarcache_memory_cache_hit_ratio',
+            help: 'Sugar-cache cache hit ratio in memory',
+        });
     }
 
     public get = (keys: string[]) => {
@@ -31,7 +38,10 @@ export default class InMemoryCache extends Cache {
         const result = this.cache.get(cacheKey) ?? null;
 
         if (result) {
+            this.cacheHitRatio.observe(1);
             this.logger.debug(`[SugarCache:${this.namespace}]: key ${cacheKey} found in memory, returning...`);
+        } else {
+            this.cacheHitRatio.observe(0);
         }
         return result;
     };

@@ -1,3 +1,7 @@
+import client from 'prom-client';
+
+export type PrometheusClient = typeof client;
+
 /**
  * @param namespace Namespace of cache. All caches without this value set share a default namespace
  */
@@ -18,6 +22,7 @@ export type CreateCacheOptions<KeyName> = {
      * https://redis.io/docs/reference/cluster-spec/#hash-tags
      */
     hashtags?: KeyName[],
+    prometheusClient?: PrometheusClient;
 }
 
 /**
