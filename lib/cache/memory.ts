@@ -12,7 +12,7 @@ export default class InMemoryCache extends Cache {
 
     private memUsageThreshold: number;
 
-    constructor(options: CreateCacheOptions, logger?: Logger) {
+    constructor(options: CreateCacheOptions<any>, logger?: Logger) {
         const { namespace, inMemoryCache: inMemoryCacheOptions } = options;
         super(namespace, logger);
         this.enabled = inMemoryCacheOptions?.enable ?? true;

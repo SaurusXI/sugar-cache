@@ -7,7 +7,7 @@ import Cache from './base';
 export default class RedisCache extends Cache {
     private redis: Redis | Cluster;
 
-    constructor(redis: Redis | Cluster, options: CreateCacheOptions, logger?: Logger) {
+    constructor(redis: Redis | Cluster, options: CreateCacheOptions<any>, logger?: Logger) {
         const { namespace } = options;
         super(namespace, logger);
         this.redis = redis;

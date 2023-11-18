@@ -12,7 +12,7 @@ export default class MultilevelCache {
 
     public namespace: string;
 
-    constructor(options: CreateCacheOptions, redis: Redis | Cluster, logger?: Logger) {
+    constructor(options: CreateCacheOptions<any>, redis: Redis | Cluster, logger?: Logger) {
         this.namespace = `sugar-cache:${options.namespace || 'default'}`;
         options.namespace = this.namespace;
 
