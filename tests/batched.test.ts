@@ -8,14 +8,15 @@ describe('Batched operations', () => {
         host: '127.0.0.1',
     });
 
-    const cache = new SugarCache(redis, { namespace: 'batched-ops' })
+    const cache = new SugarCache<'mockKey'>(redis, { namespace: 'batched-ops' })
 
-    const mockCacheVals = [...Array(100).keys()].map((x) => ({ key: `foo-${x}`, val: `bar-${x}` }));
+    const mockCacheVals = [...Array(2).keys()].map((x) => ({ key: `foo-${x}`, val: `bar-${x}` }));
+
+    const keys = mockCacheVals.map((v) => ({ mockKey: v.key })).slice(0, 2);
+    const vals = mockCacheVals.map((v) => v.val).slice(0, 2);
 
     it('mset values can be get individually', async () => {
         await cache.clear();
-        const keys = mockCacheVals.map((v) => [v.key]).slice(0, 2);
-        const vals = mockCacheVals.map((v) => v.val).slice(0, 2);
         
         await cache.mset(keys, vals, 5000);
         const v0 = await cache.get(keys[0]);
@@ -27,8 +28,6 @@ describe('Batched operations', () => {
     
     it('mset values can be mget', async () => {
         await cache.clear();
-        const keys = mockCacheVals.map((v) => [v.key]).slice(0, 2);
-        const vals = mockCacheVals.map((v) => v.val).slice(0, 2);
 
         await cache.mset(keys, vals, 5000);
         const cachedVals = await cache.mget(keys);
@@ -38,8 +37,6 @@ describe('Batched operations', () => {
 
     it('Individually set values can be mget', async () => {
         await cache.clear();
-        const keys = mockCacheVals.map((v) => [v.key]).slice(0, 2);
-        const vals = mockCacheVals.map((v) => v.val).slice(0, 2);
 
         await cache.set(keys[0], vals[0], 5000);
         await cache.set(keys[1], vals[1], 5000);
@@ -50,8 +47,6 @@ describe('Batched operations', () => {
 
     it('mdel values cannot be get or mget', async () => {
         await cache.clear();
-        const keys = mockCacheVals.map((v) => [v.key]).slice(0, 2);
-        const vals = mockCacheVals.map((v) => v.val).slice(0, 2);
 
         await cache.mset(keys, vals, 5000);
         await cache.mdel(keys);

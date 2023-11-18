@@ -12,7 +12,7 @@ const redis = new Redis({
 const mockRedisReturnVal = 'REDIS_VAL';
 
 describe('Multilevel caching', () => {
-    const cacheWithMockedRedis = new SugarCache(redis, { namespace: 'multilevel', inMemoryCache: { enable: true, memoryThresholdPercentage: 0.9} });
+    const cacheWithMockedRedis = new SugarCache<'resourceId'>(redis, { namespace: 'multilevel', inMemoryCache: { enable: true, memoryThresholdPercentage: 0.9} });
 
     class Controller {
         static mockLatency = 500;
@@ -24,7 +24,7 @@ describe('Multilevel caching', () => {
         static returnVal = 'RETURN_VAL';
 
         @cacheWithMockedRedis.cacheFnResult({
-            keyVariables: ['resourceId'],
+            keyVariables: { resourceId: 'resourceId' },
             ttl: 100
         })
         async get_fixedTTL(resourceId: string) {
@@ -33,7 +33,7 @@ describe('Multilevel caching', () => {
         }
 
         @cacheWithMockedRedis.cacheFnResult({
-            keyVariables: ['resourceId'],
+            keyVariables: { resourceId: 'resourceId' },
             ttl: {
                 memory: Controller.lowTTL,
                 redis: Controller.highTTL,
@@ -45,7 +45,7 @@ describe('Multilevel caching', () => {
         }
 
         @cacheWithMockedRedis.cacheFnResult({
-            keyVariables: ['resourceId'],
+            keyVariables: { resourceId: 'resourceId' },
             ttl: {
                 memory: Controller.highTTL,
                 redis: Controller.lowTTL,
@@ -85,13 +85,15 @@ describe('Multilevel caching', () => {
         expect(result).toStrictEqual(Controller.returnVal);
 
         // Teardown to free timers
-        await cacheWithMockedRedis.del([resourceId]);
+        await cacheWithMockedRedis.del({ resourceId });
     })
 
     it('TTL Redis < TTL Memory', async () => {
         await cacheWithMockedRedis.clear();
         // First call to put the value on cache
         await controller.get_redisDiesFirst(resourceId);
+
+        await new Promise((resolve) => setTimeout(resolve, 1.1 * Controller.lowTTL));
         // Second call to get value
         const result = await controller.get_redisDiesFirst(resourceId);
         // Value is returned from memory, so should be the actual value being returned by controller
@@ -102,15 +104,15 @@ describe('Multilevel caching', () => {
 })
 
 describe('Memory threshold test', () => {
-    const cacheWithZeroMemoryThreshold = new SugarCache(redis, {
+    const cacheWithZeroMemoryThreshold = new SugarCache<'resourceId'>(redis, {
         namespace: 'zero-memory-threshold',
         inMemoryCache: { memoryThresholdPercentage: 0, enable: true }
     });
 
     it('When memory threshold is exceeded, value is read from redis', async () => {
         const cachedResult = 'IN_MEMORY_RESULT';
-        await cacheWithZeroMemoryThreshold.set([resourceId], cachedResult, 10000);
-        const result = await cacheWithZeroMemoryThreshold.get([resourceId]);
+        await cacheWithZeroMemoryThreshold.set({ resourceId }, cachedResult, 10000);
+        const result = await cacheWithZeroMemoryThreshold.get({ resourceId });
         expect(result).toStrictEqual(cachedResult);
     })
 })

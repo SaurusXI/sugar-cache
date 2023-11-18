@@ -16,13 +16,13 @@ import {
     TTLOptions,
 } from './types';
 
-type KeysType<KeyName extends string> = {
+type KeysObject<KeyName extends string> = {
     [_Property in KeyName]: string
 };
 
 export default class SugarCache<
     KeyName extends string,
-    Keys = KeysType<KeyName>,
+    Keys extends KeysObject<KeyName> = KeysObject<KeyName>,
 > {
     private namespace: string;
 
@@ -121,13 +121,13 @@ export default class SugarCache<
      * @param keys List of keys to fetch results for
      * @returns Values set at the given keys. Returns `null` for each key that isn't set
      */
-    public mget = async (keys: string[][]) => this.cache.mget(keys);
+    public mget = async (keys: Keys[]) => this.cache.mget(keys.map(this.flattenKeysIntoKeyList));
 
     /**
      * Performs an efficient batched delete operation on the keys provided.
      * @param keys List of keys to perform delete for.
      */
-    public mdel = async (keys: string[][]) => this.cache.mdel(keys);
+    public mdel = async (keys: Keys[]) => this.cache.mdel(keys.map(this.flattenKeysIntoKeyList));
 
     /**
      * Performs an efficient batched set operation for the key-value pairs provided
