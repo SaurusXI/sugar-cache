@@ -15,10 +15,12 @@ export default class RedisCache extends Cache {
         const { namespace, prometheusClient } = options;
         super(namespace, prometheusClient, logger);
         this.redis = redis;
-        this.cacheHitRatio = new prometheusClient.Summary({
-            name: 'sugarcache_redis_cache_hit_ratio',
-            help: 'Sugar-cache cache hit ratio on redis',
-        });
+        if (prometheusClient) {
+            this.cacheHitRatio = new prometheusClient.Summary({
+                name: 'sugarcache_redis_cache_hit_ratio',
+                help: 'Sugar-cache cache hit ratio on redis',
+            });
+        }
     }
 
     private redisTransaction = () => this.redis.multi();
@@ -50,10 +52,10 @@ export default class RedisCache extends Cache {
         }
 
         if (output) {
-            this.cacheHitRatio.observe(1);
+            this.cacheHitRatio?.observe(1);
             this.logger.debug(`[SugarCache:${this.namespace}] key ${cacheKey} found in redis, returning..`);
         } else {
-            this.cacheHitRatio.observe(0);
+            this.cacheHitRatio?.observe(0);
         }
         return output;
     };
@@ -130,7 +132,7 @@ export default class RedisCache extends Cache {
         const results = (await pipe.exec()).map((redisReply) => {
             try {
                 const out = JSON.parse(redisReply[1] as string) ?? null;
-                out ? this.cacheHitRatio.observe(1) : this.cacheHitRatio.observe(0);
+                out ? this.cacheHitRatio?.observe(1) : this.cacheHitRatio?.observe(0);
                 return out;
             } catch (err) {
                 // NOTE(Shantanu): This case should only arise if no value is set

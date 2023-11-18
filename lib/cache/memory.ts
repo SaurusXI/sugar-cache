@@ -22,10 +22,12 @@ export default class InMemoryCache extends Cache {
         this.memUsageThreshold = inMemoryCacheOptions?.memoryThresholdPercentage ?? 0.5;
         this.cache = new Map<string, any>();
         this.ttlTimers = new Map();
-        this.cacheHitRatio = new prometheusClient.Summary({
-            name: 'sugarcache_memory_cache_hit_ratio',
-            help: 'Sugar-cache cache hit ratio in memory',
-        });
+        if (prometheusClient) {
+            this.cacheHitRatio = new prometheusClient.Summary({
+                name: 'sugarcache_memory_cache_hit_ratio',
+                help: 'Sugar-cache cache hit ratio in memory',
+            });
+        }
     }
 
     public get = (keys: string[]) => {
@@ -38,10 +40,10 @@ export default class InMemoryCache extends Cache {
         const result = this.cache.get(cacheKey) ?? null;
 
         if (result) {
-            this.cacheHitRatio.observe(1);
+            this.cacheHitRatio?.observe(1);
             this.logger.debug(`[SugarCache:${this.namespace}]: key ${cacheKey} found in memory, returning...`);
         } else {
-            this.cacheHitRatio.observe(0);
+            this.cacheHitRatio?.observe(0);
         }
         return result;
     };
