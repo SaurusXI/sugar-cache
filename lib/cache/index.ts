@@ -28,14 +28,17 @@ export default class MultilevelCache {
         keys: string[],
         value: any,
         ttls: TTLOptions,
-    ) => Promise.all([
-        this.redisCache.set(keys, value, ttls.redis),
-        this.inMemoryCache.set(keys, value, ttls.memory),
-    ]);
+    ) => {
+        this.inMemoryCache.set(keys, value, ttls.memory);
+        await this.redisCache.set(keys, value, ttls.redis);
+    };
 
     public del = async (
         keys: string[],
-    ) => Promise.all([this.redisCache.del(keys), this.inMemoryCache.del(keys)]);
+    ) => {
+        await this.redisCache.del(keys);
+        this.inMemoryCache.del(keys);
+    };
 
     public clear = async () => Promise.all([this.redisCache.clear(), this.inMemoryCache.clear()]);
 
