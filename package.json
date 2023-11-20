@@ -8,25 +8,28 @@
     "url": "https://github.com/SaurusXI"
   },
   "devDependencies": {
-    "@types/ioredis": "^4.28.10",
-    "@types/jest": "^29.0.3",
-    "@typescript-eslint/eslint-plugin": "^5.36.2",
-    "@typescript-eslint/parser": "^5.36.2",
-    "eslint": "^8.23.0",
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.9.1",
+    "@typescript-eslint/eslint-plugin": "^6.11.0",
+    "@typescript-eslint/parser": "^6.11.0",
+    "eslint": "^8.53.0",
     "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.26.0",
-    "ioredis": "^5.2.4",
-    "jest": "^29.0.3",
+    "eslint-plugin-import": "^2.29.0",
+    "jest": "^29.7.0",
     "semantic-release": "^19.0.5",
-    "ts-jest": "^29.0.1",
-    "typescript": "^4.8.3"
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
   },
   "scripts": {
     "build": "rm -rf dist && tsc",
-    "test": "jest --runInBand --forceExit"
+    "test": "jest --forceExit",
+    "lint": "eslint . --ext .ts --ext .js",
+    "lint:fix": "eslint . --ext .ts --ext .js --fix"
   },
   "dependencies": {
-    "@captemulation/get-parameter-names": "^1.4.2"
+    "@captemulation/get-parameter-names": "^1.4.2",
+    "ioredis": "^5.3.2",
+    "prom-client": "^15.0.0"
   },
   "repository": {
     "type": "git",
