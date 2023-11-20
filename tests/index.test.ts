@@ -171,4 +171,55 @@ describe('Functional tests', () => {
             }
         });
     });
+
+    describe('Basic cache hashtags', () => {
+        const namespace = 'hashtags';
+        const cache = new SugarCache<'mockKey' | 'mockKey2'>(redis, {
+            namespace: 'hashtags',
+            hashtags: {
+                mockKey: true,
+            },
+        });
+
+        it('ops use hashtag keys', async () => {
+            const mockKey = 'foo';
+            const mockKey2 = 'no-hashtag';
+            const mockValue = 'bar';
+
+            await cache.clear();
+            await cache.set({ mockKey, mockKey2 }, mockValue, 5000);
+
+            const redisKeys = await redis.keys(`sugar-cache:${namespace}*`);
+
+            expect(redisKeys.length).toStrictEqual(1);
+            expect(redisKeys[0]).toStrictEqual(`sugar-cache:${namespace}:{foo}:no-hashtag`);
+
+            const storedValue = await cache.get({ mockKey, mockKey2 });
+            expect(storedValue).toStrictEqual(mockValue);
+        });
+
+        it('batched ops use hashtag keys', async () => {
+            const mockCacheVals = [...Array(2).keys()].map((x) => ({ key: `foo-${x}`, val: `bar-${x}` }));
+            const mockKey2 = 'no-hashtag';
+
+            const keys = mockCacheVals.map((v) => ({ mockKey: v.key, mockKey2 })).slice(0, 2);
+            const vals = mockCacheVals.map((v) => v.val).slice(0, 2);
+
+            
+            await cache.clear();
+            await cache.mset(keys, vals, 5000);
+            
+            const redisKeys = await redis.keys(`sugar-cache:${namespace}*`);
+            
+            expect(redisKeys.length).toStrictEqual(keys.length);
+
+            expect(new Set(redisKeys))
+                .toStrictEqual(new Set(
+                    keys.map((v) => `sugar-cache:${namespace}:{${v.mockKey}}:no-hashtag`
+                )));
+
+            const storedValues = await cache.mget(keys);
+            expect(storedValues).toStrictEqual(vals);
+        });
+    });
 });

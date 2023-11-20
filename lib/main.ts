@@ -42,7 +42,13 @@ export default class SugarCache<
         this.namespace = this.cache.namespace;
 
         const { hashtags } = options;
-        this.hashtags = new Set(hashtags);
+
+        this.hashtags = new Set();
+        if (hashtags) {
+            this.hashtags = new Set(
+                Object.keys(hashtags).filter((key) => hashtags[key]),
+            ) as Set<KeyName>;
+        }
     }
 
     private validateKeys = (targetFn: any, cacheKeys: string[]) => {
@@ -72,12 +78,16 @@ export default class SugarCache<
         .map(([_, val]) => val as string);
 
     private wrapValuesInHashtags = (keys: Keys) => {
+        // NOTE: copy keys to not mutate callers original object
+        const out = {} as Keys;
         Object.keys(keys).forEach((key: KeyName) => {
             if (this.hashtags.has(key)) {
-                keys[key] = `{${keys[key]}}` as any;
+                out[key] = `{${keys[key]}}` as any;
+            } else {
+                out[key] = keys[key];
             }
         });
-        return keys;
+        return out;
     };
 
     private transformKeysIntoKeyList = (keys: Keys) => this.flattenKeysIntoKeyList(

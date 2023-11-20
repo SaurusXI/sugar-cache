@@ -5,7 +5,7 @@ export type PrometheusClient = typeof client;
 /**
  * @param namespace Namespace of cache. All caches without this value set share a default namespace
  */
-export type CreateCacheOptions<KeyName> = {
+export type CreateCacheOptions<KeyName extends string> = {
     namespace?: string;
     inMemoryCache?: {
         enable?: boolean,
@@ -21,7 +21,7 @@ export type CreateCacheOptions<KeyName> = {
      * when using batched operations (`mset`, `mget`, `mdel`) on a clustered redis connection.
      * https://redis.io/docs/reference/cluster-spec/#hash-tags
      */
-    hashtags?: KeyName[],
+    hashtags?: { [_Property in KeyName]?: boolean },
     prometheusClient?: PrometheusClient;
 }
 
