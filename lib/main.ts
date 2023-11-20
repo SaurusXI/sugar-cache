@@ -188,7 +188,7 @@ export default class SugarCache<
     private reduceKeyVariablesToKeys(keyVariables: KeyVariables<Keys>, namedArgs: any) {
         const out = {} as Keys;
 
-        if (Object.keys(keyVariables).length !== Object.keys(namedArgs).length) {
+        if (Object.keys(keyVariables).length > Object.keys(namedArgs).length) {
             throw new Error('Invalid arguments passed to function');
         }
 
