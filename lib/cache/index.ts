@@ -1,6 +1,6 @@
 /* eslint-disable no-param-reassign */
 import Redis, { Cluster } from 'ioredis';
-import { CreateCacheOptions, TTLOptions } from '../types';
+import { CreateCacheOptions, CachewiseTTL } from '../types';
 import { Logger } from '../types/logging';
 import InMemoryCache from './memory';
 import RedisCache from './redis';
@@ -27,7 +27,7 @@ export default class MultilevelCache {
     public set = async (
         keys: string[],
         value: any,
-        ttls: TTLOptions,
+        ttls: CachewiseTTL,
     ) => {
         this.inMemoryCache.set(keys, value, ttls.memory);
         await this.redisCache.set(keys, value, ttls.redis);
@@ -62,7 +62,7 @@ export default class MultilevelCache {
         return out;
     };
 
-    public mset = async (keys: string[][], values: any[], ttls: TTLOptions) => {
+    public mset = async (keys: string[][], values: any[], ttls: CachewiseTTL) => {
         if (keys.length !== values.length) {
             throw new Error('Length of keys and values is not the same');
         }

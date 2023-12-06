@@ -8,12 +8,12 @@ import readFunctionParams from '@captemulation/get-parameter-names';
 import MultilevelCache from './cache';
 import { dummyLogger, Logger } from './types/logging';
 import {
-    CacheFnResultParams,
+    MemoizeParams,
     CreateCacheOptions,
-    InvalidateFromCacheParams,
-    KeyVariables,
+    InvalidateMemoizedParams,
+    VariablesByKeys,
     TTL,
-    TTLOptions,
+    CachewiseTTL,
 } from './types';
 
 type KeysObject<KeyName extends string> = {
@@ -115,11 +115,11 @@ export default class SugarCache<
     public set = async (
         keys: Keys,
         value: any,
-        ttl: TTL | TTLOptions,
+        ttl: TTL | CachewiseTTL,
     ) => {
         const flattenedKeyList = this.transformKeysIntoKeyList(keys);
-        if ((ttl as TTLOptions).redis) {
-            const ttlOptions = ttl as TTLOptions;
+        if ((ttl as CachewiseTTL).redis) {
+            const ttlOptions = ttl as CachewiseTTL;
             return this.cache.set(flattenedKeyList, value, ttlOptions);
         }
         const ttlTyped = ttl as TTL;
@@ -168,11 +168,11 @@ export default class SugarCache<
     public mset = async (
         keys: Keys[],
         values: any[],
-        ttl: TTL | TTLOptions,
+        ttl: TTL | CachewiseTTL,
     ) => {
         const flattenedKeyLists = keys.map(this.transformKeysIntoKeyList);
-        if ((ttl as TTLOptions).redis) {
-            const ttlOptions = ttl as TTLOptions;
+        if ((ttl as CachewiseTTL).redis) {
+            const ttlOptions = ttl as CachewiseTTL;
             return this.cache.mset(flattenedKeyLists, values, ttlOptions);
         }
         const ttlTyped = ttl as TTL;
@@ -185,7 +185,7 @@ export default class SugarCache<
     // ----------- Decorator Methods -----------
 
     // eslint-disable-next-line class-methods-use-this
-    private reduceKeyVariablesToKeys(keyVariables: KeyVariables<Keys>, namedArgs: any) {
+    private reduceVarsByKeysToKeys(keyVariables: VariablesByKeys<Keys>, namedArgs: any) {
         const out = {} as Keys;
 
         if (Object.keys(keyVariables).length > Object.keys(namedArgs).length) {
@@ -205,10 +205,14 @@ export default class SugarCache<
         return out;
     }
 
-    private getKeysFromFunc(args: IArguments, originalFn: any, keyVariables: KeyVariables<Keys>) {
+    private getKeysFromFunc(
+        args: IArguments,
+        originalFn: any,
+        variablesByKeys: VariablesByKeys<Keys>,
+    ) {
         const namedArguments = SugarCache.transformIntoNamedArgs(args, originalFn);
-        return this.reduceKeyVariablesToKeys(
-            keyVariables,
+        return this.reduceVarsByKeysToKeys(
+            variablesByKeys,
             namedArguments,
         );
     }
@@ -217,15 +221,15 @@ export default class SugarCache<
      * Decorator to read a value from cache if it exists
      * If it doesn't the target function is called and the return value is set on cache
      */
-    public cacheFnResult(
-        params: CacheFnResultParams<Keys>,
+    public memoize(
+        params: MemoizeParams<Keys>,
     ) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             const originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { variableNames: keyVariables, ttl } = params;
+            const { argnamesByKeys: keyVariables, ttl } = params;
 
             cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
 
@@ -249,17 +253,18 @@ export default class SugarCache<
     }
 
     /**
-     * Decorator to remove value from cache
+     * Decorator to remove memoized result at a key (computed from function args at runtime)
+     * from cache.
      */
-    public invalidateFromCache(
-        params: InvalidateFromCacheParams<Keys>,
+    public invalidateMemoized(
+        params: InvalidateMemoizedParams<Keys>,
     ) {
         const cacheInstance = this;
         return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
             const originalFn = descriptor.value.originalFn || descriptor.value;
             const currentFn = descriptor.value;
 
-            const { variableNames: keyVariables } = params;
+            const { argnamesByKeys: keyVariables } = params;
 
             cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
 
@@ -270,6 +275,39 @@ export default class SugarCache<
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to delete value from cache - ${err}`); });
 
                 const result = await currentFn.apply(this, arguments);
+
+                return result;
+            };
+            descriptor.value.originalFn = originalFn;
+        };
+    }
+
+    /**
+     * Decorator to execute a function and set the return value to cache.
+     * This will replace any previously memoized value for the key being operated on.
+     * Key difference between this and the `memoize` decorator is that
+     * this always executes the decorated function, whereas the latter will not
+     * execute if a memoized value is found.
+     */
+    public updateMemoized(
+        params: MemoizeParams<Keys>,
+    ) {
+        const cacheInstance = this;
+        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
+            const originalFn = descriptor.value.originalFn || descriptor.value;
+            const currentFn = descriptor.value;
+
+            const { argnamesByKeys: keyVariables, ttl } = params;
+
+            cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
+
+            descriptor.value = async function () {
+                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn, keyVariables);
+
+                const result = await currentFn.apply(this, arguments);
+
+                await cacheInstance.set(keys, result, ttl)
+                    .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to set value to cache - ${err}`); });
 
                 return result;
             };

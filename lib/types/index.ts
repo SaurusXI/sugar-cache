@@ -36,26 +36,26 @@ export type TTL = number | {
 /**
  * Granular TTL specification for memory and redis caches
  */
-export type TTLOptions = {
+export type CachewiseTTL = {
     redis: TTL,
     memory: TTL,
 };
 
-export type KeyVariables<T> = {
+export type VariablesByKeys<T> = {
     [_Property in keyof T]: string
 };
 
-export type CacheFnResultParams<T> = {
+export type MemoizeParams<T> = {
     /**
-     * Object mapping function arguments to cache keys
+     * Object mapping cache keys to function args
      */
-    variableNames: KeyVariables<T>;
-    ttl: TTL | TTLOptions;
+    argnamesByKeys: VariablesByKeys<T>;
+    ttl: TTL | CachewiseTTL;
 }
 
-export type InvalidateFromCacheParams<T> = {
+export type InvalidateMemoizedParams<T> = {
     /**
      * Object mapping function arguments to cache keys
      */
-    variableNames: KeyVariables<T>;
+    argnamesByKeys: VariablesByKeys<T>;
 }
