@@ -69,8 +69,8 @@ describe('Functional tests', () => {
             const secondCacheBasic = new SugarCache<'category'>(redis, { namespace: 'secondBasic' });
 
             class Controller {
-                @cacheBasic.cacheFnResult({
-                    variableNames: {
+                @cacheBasic.memoize({
+                    argnamesByKeys: {
                         id: 'resourceId',
                         category: 'resourceCategory',
                     },
@@ -82,8 +82,8 @@ describe('Functional tests', () => {
                     return { res: resourceCategory + resourceId };
                 }
 
-                @cacheBasic.invalidateFromCache({
-                    variableNames: {
+                @cacheBasic.invalidateMemoized({
+                    argnamesByKeys: {
                         id: 'resourceId',
                         category: 'resourceCategory'
                     },
@@ -92,8 +92,8 @@ describe('Functional tests', () => {
                     return { res: resourceCategory + resourceId };
                 }
 
-                @secondCacheBasic.cacheFnResult({ variableNames: { category: 'orgId'}, ttl })
-                @cacheBasic.cacheFnResult({ variableNames: { id: 'orgId', category: 'resourceId' }, ttl })
+                @secondCacheBasic.memoize({ argnamesByKeys: { category: 'orgId'}, ttl })
+                @cacheBasic.memoize({ argnamesByKeys: { id: 'orgId', category: 'resourceId' }, ttl })
                 async compoundRead(resourceId: string, orgId: string) {
                     // Introduce mock latency which will not happen when the cache is hit
                     await new Promise((resolve) => setTimeout(resolve, mockLatency));
