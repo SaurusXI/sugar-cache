@@ -5,8 +5,8 @@
         "module": "commonjs",
         "moduleResolution": "node",
         "isolatedModules": false,
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true,
+        "experimentalDecorators": false,
+        "emitDecoratorMetadata": false,
         "declaration": true,
         "noImplicitAny": false,
         "removeComments": true,
@@ -16,6 +16,7 @@
         "suppressImplicitAnyIndexErrors": true,
         "outDir": "dist",
         "baseUrl": "./lib/",
+        "ignoreDeprecations": "5.0"
     },
     "include": ["./**/*.ts"]
 }

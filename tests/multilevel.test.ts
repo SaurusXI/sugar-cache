@@ -12,7 +12,11 @@ const redis = new Redis({
 const mockRedisReturnVal = 'REDIS_VAL';
 
 describe('Multilevel caching', () => {
-    const cacheWithMockedRedis = new SugarCache<'resourceId'>(redis, { namespace: 'multilevel', inMemoryCache: { enable: true, memoryThresholdPercentage: 0.9} });
+    const cacheWithMockedRedis = new SugarCache(redis, {
+        namespace: 'multilevel',
+        keys: ['resourceId'],
+        inMemoryCache: { enable: true, memoryThresholdPercentage: 0.9},
+    });
 
     class Controller {
         static mockLatency = 500;
@@ -23,17 +27,13 @@ describe('Multilevel caching', () => {
 
         static returnVal = 'RETURN_VAL';
 
-        @cacheWithMockedRedis.memoize({
-            argnamesByKeys: { resourceId: 'resourceId' },
-            ttl: 100
-        })
+        @cacheWithMockedRedis.memoize({ ttl: 100 })
         async get_fixedTTL(resourceId: string) {
             await new Promise((resolve) => setTimeout(resolve, Controller.mockLatency));
             return Controller.returnVal; 
         }
 
         @cacheWithMockedRedis.memoize({
-            argnamesByKeys: { resourceId: 'resourceId' },
             ttl: {
                 memory: Controller.lowTTL,
                 redis: Controller.highTTL,
@@ -45,7 +45,6 @@ describe('Multilevel caching', () => {
         }
 
         @cacheWithMockedRedis.memoize({
-            argnamesByKeys: { resourceId: 'resourceId' },
             ttl: {
                 memory: Controller.highTTL,
                 redis: Controller.lowTTL,
@@ -104,8 +103,9 @@ describe('Multilevel caching', () => {
 })
 
 describe('Memory threshold test', () => {
-    const cacheWithZeroMemoryThreshold = new SugarCache<'resourceId'>(redis, {
+    const cacheWithZeroMemoryThreshold = new SugarCache(redis, {
         namespace: 'zero-memory-threshold',
+        keys: ['resourceId'],
         inMemoryCache: { memoryThresholdPercentage: 0, enable: true }
     });
 

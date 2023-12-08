@@ -19,7 +19,7 @@ describe('Functional tests', () => {
     const totTestKeys = 100;
 
     describe('Basic cache', () => {
-        const cacheBasic = new SugarCache<'mockKey'>(redis, { namespace: 'basic' });
+        const cacheBasic = new SugarCache(redis, { keys: ['mockKey'], namespace: 'basic' });
         const mockKey = 'foo';
         const mockVal = { res: 'bar' };
 
@@ -64,36 +64,25 @@ describe('Functional tests', () => {
         describe('Decorator methods', () => {
             const mockLatency = 3000;
 
-            const cacheBasic = new SugarCache<'category' | 'id'>(redis, { namespace: 'secondBasic' });
+            const cacheBasic = new SugarCache(redis, { keys: ['resourceId', 'orgId'], namespace: 'secondBasic' });
 
-            const secondCacheBasic = new SugarCache<'category'>(redis, { namespace: 'secondBasic' });
+            const secondCacheBasic = new SugarCache(redis, { keys: ['orgId'], namespace: 'secondBasic' });
 
             class Controller {
-                @cacheBasic.memoize({
-                    argnamesByKeys: {
-                        id: 'resourceId',
-                        category: 'resourceCategory',
-                    },
-                    ttl,
-                })
+                @cacheBasic.memoize({ ttl })
                 async read(resourceId: string, resourceCategory: string) {
                     // Introduce mock latency which will not happen when the cache is hit
                     await new Promise((resolve) => setTimeout(resolve, mockLatency));
                     return { res: resourceCategory + resourceId };
                 }
 
-                @cacheBasic.invalidateMemoized({
-                    argnamesByKeys: {
-                        id: 'resourceId',
-                        category: 'resourceCategory'
-                    },
-                })
+                @cacheBasic.invalidateMemoized()
                 async delete(resourceId: string, resourceCategory: string) {
                     return { res: resourceCategory + resourceId };
                 }
 
-                @secondCacheBasic.memoize({ argnamesByKeys: { category: 'orgId'}, ttl })
-                @cacheBasic.memoize({ argnamesByKeys: { id: 'orgId', category: 'resourceId' }, ttl })
+                @secondCacheBasic.memoize({ ttl })
+                @cacheBasic.memoize({ ttl })
                 async compoundRead(resourceId: string, orgId: string) {
                     // Introduce mock latency which will not happen when the cache is hit
                     await new Promise((resolve) => setTimeout(resolve, mockLatency));
@@ -118,7 +107,7 @@ describe('Functional tests', () => {
             it('invalidate', async () => {
                 const response = await controller.delete(resourceId, resourceCategory);
                 expect(response).toStrictEqual({ res: resourceCategory + resourceId });
-                const cachedValue = await cacheBasic.get({ category: resourceCategory, id: resourceId });
+                const cachedValue = await cacheBasic.get({ orgId: resourceCategory, resourceId });
                 expect(cachedValue).toBeNull();
             });
 
@@ -137,7 +126,7 @@ describe('Functional tests', () => {
 
     describe('Basic cache with redis cluster', () => {
         const redisCluster = new Redis.Cluster([{ host: '127.0.0.1', port: 6380 }]);
-        const cacheBasic = new SugarCache<'mockKey'>(redisCluster, { namespace: 'cluster' });
+        const cacheBasic = new SugarCache(redisCluster, { namespace: 'cluster', keys: ['mockKey'] });
         const mockKey = 'foo';
         const mockVal = { res: 'bar' };
 
@@ -174,8 +163,9 @@ describe('Functional tests', () => {
 
     describe('Basic cache hashtags', () => {
         const namespace = 'hashtags';
-        const cache = new SugarCache<'mockKey' | 'mockKey2'>(redis, {
+        const cache = new SugarCache(redis, {
             namespace: 'hashtags',
+            keys: ['mockKey', 'mockKey2'],
             hashtags: {
                 mockKey: true,
             },

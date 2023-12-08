@@ -8,7 +8,10 @@ describe('Batched operations', () => {
         host: '127.0.0.1',
     });
 
-    const cache = new SugarCache<'mockKey'>(redis, { namespace: 'batched-ops' })
+    const cache = new SugarCache(redis, {
+        namespace: 'batched-ops',
+        keys: ['mockKey']
+    })
 
     const mockCacheVals = [...Array(2).keys()].map((x) => ({ key: `foo-${x}`, val: `bar-${x}` }));
 

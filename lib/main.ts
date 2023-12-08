@@ -10,34 +10,32 @@ import { dummyLogger, Logger } from './types/logging';
 import {
     MemoizeParams,
     CreateCacheOptions,
-    InvalidateMemoizedParams,
-    VariablesByKeys,
     TTL,
     CachewiseTTL,
+    KeysObject,
+    UpdateMemoizedParams,
 } from './types';
-
-type KeysObject<KeyName extends string> = {
-    [_Property in KeyName]: string
-};
+import { DecoratedMethod } from './types/internals';
 
 export default class SugarCache<
-    KeyName extends string,
+    const KeyNames extends readonly string[],
+    KeyName extends string = KeyNames[number],
     Keys extends KeysObject<KeyName> = KeysObject<KeyName>,
 > {
     private namespace: string;
 
     private cache: MultilevelCache;
 
-    private readonly logger: Logger;
-
     private hashtags: Set<KeyName>;
+
+    private keyNames: KeyNames;
 
     constructor(
         redis: Redis | Cluster,
-        options: CreateCacheOptions<KeyName>,
-        logger: Logger = dummyLogger,
+        options: CreateCacheOptions<KeyNames>,
+        readonly logger: Logger = dummyLogger,
     ) {
-        this.logger = logger;
+        this.keyNames = options.keys;
         this.cache = new MultilevelCache(options, redis, logger);
         this.namespace = this.cache.namespace;
 
@@ -51,12 +49,12 @@ export default class SugarCache<
         }
     }
 
-    private validateKeys = (targetFn: any, cacheKeys: string[]) => {
+    private validateKeys = (targetFn: any) => {
         const params = readFunctionParams(targetFn);
-        const invalidKeys = cacheKeys.filter((k) => !params.includes(k));
+        const invalidKeys = this.keyNames.filter((k) => !params.includes(k));
 
         if (invalidKeys.length) {
-            this.logger.debug(`[SugarCache:${this.namespace}] Function params - ${JSON.stringify(params)}, cacheKeys - ${JSON.stringify(cacheKeys)}, invalid keys - ${JSON.stringify(invalidKeys)}`);
+            this.logger.debug(`[SugarCache:${this.namespace}] Function params - ${JSON.stringify(params)}, cacheKeys - ${JSON.stringify(this.keyNames)}, invalid keys - ${JSON.stringify(invalidKeys)}`);
             throw new Error('[SugarCache] Keys passed to decorator do not match function params');
         }
     };
@@ -184,35 +182,31 @@ export default class SugarCache<
 
     // ----------- Decorator Methods -----------
 
-    // eslint-disable-next-line class-methods-use-this
-    private reduceVarsByKeysToKeys(keyVariables: VariablesByKeys<Keys>, namedArgs: any) {
+    private extractKeysFromFunc(namedArgs: any) {
         const out = {} as Keys;
 
-        if (Object.keys(keyVariables).length > Object.keys(namedArgs).length) {
+        if (this.keyNames.length > Object.keys(namedArgs).length) {
             throw new Error('Invalid arguments passed to function');
         }
 
-        Object.keys(keyVariables).forEach((keyName) => {
-            const variableName = keyVariables[keyName] as string;
-            const variableValue = namedArgs[variableName];
+        this.keyNames.forEach((keyName) => {
+            const variableValue = namedArgs[keyName];
             if (variableValue === undefined) {
                 throw new Error('Invalid arguments passed to function');
             }
 
-            out[keyName] = variableName;
+            out[keyName] = variableValue;
         });
 
         return out;
     }
 
-    private getKeysFromFunc(
+    getKeysFromFunc(
         args: IArguments,
         originalFn: any,
-        variablesByKeys: VariablesByKeys<Keys>,
     ) {
         const namedArguments = SugarCache.transformIntoNamedArgs(args, originalFn);
-        return this.reduceVarsByKeysToKeys(
-            variablesByKeys,
+        return this.extractKeysFromFunc(
             namedArguments,
         );
     }
@@ -221,21 +215,29 @@ export default class SugarCache<
      * Decorator to read a value from cache if it exists
      * If it doesn't the target function is called and the return value is set on cache
      */
-    public memoize(
-        params: MemoizeParams<Keys>,
-    ) {
+    memoize<TThis, TArgs extends any[]>(
+        params: MemoizeParams,
+    ): DecoratedMethod<TThis, TArgs> {
         const cacheInstance = this;
-        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
-            const originalFn = descriptor.value.originalFn || descriptor.value;
-            const currentFn = descriptor.value;
+        return (
+            target: (_this: TThis, ..._args: TArgs) => any,
+            context: ClassMethodDecoratorContext<TThis, (_this: TThis, ..._args: TArgs) => any>,
+        ) => {
+            const originalFn = context.metadata.originalFn || target;
+            const currentFn = target;
+            context.metadata.originalFn = originalFn;
 
-            const { argnamesByKeys: keyVariables, ttl } = params;
+            const { ttl } = params;
 
-            cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
+            // NOTE(Shantanu)
+            // Currently it is not possible to make the type system aware of
+            // function parameter names, so we can't throw type errors if keyNames are missing
+            // from function params. Current implementation only verifies at compile time
+            // Once https://github.com/microsoft/TypeScript/issues/44939 is resolved this can be implemented
+            cacheInstance.validateKeys(originalFn);
 
-            // eslint-disable-next-line no-param-reassign
-            descriptor.value = async function () {
-                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn, keyVariables);
+            return async () => {
+                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn);
 
                 const cachedResult = await cacheInstance.get(keys);
                 if (cachedResult !== null) {
@@ -248,7 +250,6 @@ export default class SugarCache<
 
                 return result;
             };
-            descriptor.value.originalFn = originalFn;
         };
     }
 
@@ -256,20 +257,26 @@ export default class SugarCache<
      * Decorator to remove memoized result at a key (computed from function args at runtime)
      * from cache.
      */
-    public invalidateMemoized(
-        params: InvalidateMemoizedParams<Keys>,
-    ) {
+    public invalidateMemoized<TThis, TArgs extends any[]>()
+    : DecoratedMethod<TThis, TArgs> {
         const cacheInstance = this;
-        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
-            const originalFn = descriptor.value.originalFn || descriptor.value;
-            const currentFn = descriptor.value;
+        return function (
+            target: (_this: TThis, ..._args: TArgs) => any,
+            context: ClassMethodDecoratorContext<TThis, (_this: TThis, ..._args: TArgs) => any>,
+        ): DecoratedMethod<TThis, TArgs> {
+            const originalFn = context.metadata.originalFn || target;
+            const currentFn = target;
+            context.metadata.originalFn = originalFn;
 
-            const { argnamesByKeys: keyVariables } = params;
+            // NOTE(Shantanu)
+            // Currently it is not possible to make the type system aware of
+            // function parameter names, so we can't throw type errors if keyNames are missing
+            // from function params. Current implementation only verifies at compile time
+            // Once https://github.com/microsoft/TypeScript/issues/44939 is resolved this can be implemented
+            cacheInstance.validateKeys(originalFn);
 
-            cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
-
-            descriptor.value = async function () {
-                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn, keyVariables);
+            return async () => {
+                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn);
 
                 await cacheInstance.del(keys)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to delete value from cache - ${err}`); });
@@ -278,7 +285,6 @@ export default class SugarCache<
 
                 return result;
             };
-            descriptor.value.originalFn = originalFn;
         };
     }
 
@@ -289,29 +295,41 @@ export default class SugarCache<
      * this always executes the decorated function, whereas the latter will not
      * execute if a memoized value is found.
      */
-    public updateMemoized(
-        params: MemoizeParams<Keys>,
-    ) {
+    public updateMemoized<TThis, TArgs extends any[]>(
+        params: UpdateMemoizedParams,
+    ): DecoratedMethod<TThis, TArgs> {
         const cacheInstance = this;
-        return function (target: any, propertyKey: string, descriptor: PropertyDescriptor): any {
-            const originalFn = descriptor.value.originalFn || descriptor.value;
-            const currentFn = descriptor.value;
+        return function (
+            target: (_this: TThis, ..._args: TArgs) => any,
+            context: ClassMethodDecoratorContext<TThis, (_this: TThis, ..._args: TArgs) => any>,
+        ): DecoratedMethod<TThis, TArgs> {
+            const originalFn = context.metadata.originalFn || target;
+            const currentFn = target;
+            context.metadata.originalFn = originalFn;
 
-            const { argnamesByKeys: keyVariables, ttl } = params;
+            const { ttl } = params;
+            // NOTE(Shantanu)
+            // Currently it is not possible to make the type system aware of
+            // function parameter names, so we can't throw type errors if keyNames are missing
+            // from function params. Current implementation only verifies at compile time
+            // Once https://github.com/microsoft/TypeScript/issues/44939 is resolved this can be implemented
+            cacheInstance.validateKeys(originalFn);
 
-            cacheInstance.validateKeys(originalFn, Object.values(keyVariables));
-
-            descriptor.value = async function () {
-                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn, keyVariables);
-
+            return async () => {
+                const keys = cacheInstance.getKeysFromFunc(arguments, originalFn);
                 const result = await currentFn.apply(this, arguments);
 
-                await cacheInstance.set(keys, result, ttl)
+                const value = result;
+                // if (accumulator) {
+                //     const memoizedValue = await cacheInstance.get(
+                //    keys) ?? accumulator.initialValue;
+                //     value = accumulator.fn(memoizedValue, result);
+                // }
+                await cacheInstance.set(keys, value, ttl)
                     .catch((err) => { throw new Error(`[SugarCache:${cacheInstance.namespace}] Unable to set value to cache - ${err}`); });
 
                 return result;
             };
-            descriptor.value.originalFn = originalFn;
         };
     }
 }
