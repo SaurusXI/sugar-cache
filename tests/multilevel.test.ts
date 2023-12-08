@@ -56,7 +56,10 @@ describe('Multilevel caching', () => {
         }
     }
 
-    const controller = new Controller();
+    let controller: Controller;
+    beforeAll(() => {
+        controller = new Controller();
+    });
 
     it('TTL Redis = TTL Memory', async () => {
         await cacheWithMockedRedis.clear();

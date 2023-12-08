@@ -40,6 +40,15 @@ describe('Functional tests', () => {
             expect(cachedVal).toBeNull();
         });
 
+        it('TTL based eviction', async () => {
+            await cacheBasic.set({ mockKey }, mockVal, ttl);
+            await new Promise((resolve) => {
+                setTimeout(resolve, ttl * 1.1);
+            });
+            const cachedVal = await cacheBasic.get({ mockKey });
+            expect(cachedVal).toBeNull();
+        }, 2 * ttl);
+
         it('clear cache', async () => {
             for (const mockObj of mockCacheVals) {
                 await cacheBasic.set({ mockKey: mockObj.key }, mockObj.val, ttl);
@@ -52,33 +61,24 @@ describe('Functional tests', () => {
             }
         });
 
-        it('TTL based eviction', async () => {
-            await cacheBasic.set({ mockKey }, mockVal, ttl);
-            await new Promise((resolve) => {
-                setTimeout(resolve, ttl * 1.1);
-            });
-            const cachedVal = await cacheBasic.get({ mockKey });
-            expect(cachedVal).toBeNull();
-        }, 2 * ttl);
-
         describe('Decorator methods', () => {
             const mockLatency = 3000;
 
-            const cacheBasic = new SugarCache(redis, { keys: ['resourceId', 'orgId'], namespace: 'secondBasic' });
+            const cacheBasic = new SugarCache(redis, { keys: ['resourceId', 'orgId'], namespace: 'basic' });
 
             const secondCacheBasic = new SugarCache(redis, { keys: ['orgId'], namespace: 'secondBasic' });
 
             class Controller {
                 @cacheBasic.memoize({ ttl })
-                async read(resourceId: string, resourceCategory: string) {
+                async read(resourceId: string, orgId: string) {
                     // Introduce mock latency which will not happen when the cache is hit
                     await new Promise((resolve) => setTimeout(resolve, mockLatency));
-                    return { res: resourceCategory + resourceId };
+                    return { res: orgId + resourceId };
                 }
 
                 @cacheBasic.invalidateMemoized()
-                async delete(resourceId: string, resourceCategory: string) {
-                    return { res: resourceCategory + resourceId };
+                async delete(resourceId: string, orgId: string) {
+                    return { res: orgId + resourceId };
                 }
 
                 @secondCacheBasic.memoize({ ttl })
