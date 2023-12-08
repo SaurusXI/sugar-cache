@@ -1,3 +1,4 @@
+import SugarCache from '../main';
 import client from 'prom-client';
 
 export type PrometheusClient = typeof client;
@@ -5,7 +6,11 @@ export type PrometheusClient = typeof client;
 /**
  * @param namespace Namespace of cache. All caches without this value set share a default namespace
  */
-export type CreateCacheOptions<KeyName extends string> = {
+export type CreateCacheOptions<
+    KeyNames,
+    KeyName extends string = KeyNames extends readonly string[] ? KeyNames[number] : never
+> = {
+    keys: KeyNames,
     namespace?: string;
     inMemoryCache?: {
         enable?: boolean,
@@ -41,21 +46,22 @@ export type CachewiseTTL = {
     memory: TTL,
 };
 
-export type VariablesByKeys<T> = {
-    [_Property in keyof T]: string
+export type KeysObject<KeyName extends string> = {
+    [_Property in KeyName]: string
 };
 
-export type MemoizeParams<T> = {
+
+export type MemoizeParams = {
     /**
      * Object mapping cache keys to function args
      */
-    argnamesByKeys: VariablesByKeys<T>;
     ttl: TTL | CachewiseTTL;
 }
 
-export type InvalidateMemoizedParams<T> = {
-    /**
-     * Object mapping function arguments to cache keys
-     */
-    argnamesByKeys: VariablesByKeys<T>;
+export type UpdateMemoizedParams = {
+    ttl: TTL | CachewiseTTL;
 }
+
+export type VariablesByKeys<T> = {
+    [_Property in keyof T]: string
+};
