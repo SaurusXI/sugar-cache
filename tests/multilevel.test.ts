@@ -9,8 +9,6 @@ const redis = new Redis({
     host: '127.0.0.1',
 });
 
-const mockRedisReturnVal = 'REDIS_VAL';
-
 describe('Multilevel caching', () => {
     const cacheWithMockedRedis = new SugarCache(redis, {
         namespace: 'multilevel',
@@ -18,12 +16,13 @@ describe('Multilevel caching', () => {
         inMemoryCache: { enable: true, memoryThresholdPercentage: 0.9},
     });
 
+    const lowTTL = 10;
+
+    const highTTL = 100;
+
     class Controller {
         static mockLatency = 500;
 
-        static lowTTL = 10;
-
-        static highTTL = 100;
 
         static returnVal = 'RETURN_VAL';
 
@@ -35,8 +34,8 @@ describe('Multilevel caching', () => {
 
         @cacheWithMockedRedis.memoize({
             ttl: {
-                memory: Controller.lowTTL,
-                redis: Controller.highTTL,
+                memory: lowTTL,
+                redis: highTTL,
             }
         })
         async get_memoryDiesFirst(resourceId: string) {
@@ -46,8 +45,8 @@ describe('Multilevel caching', () => {
 
         @cacheWithMockedRedis.memoize({
             ttl: {
-                memory: Controller.highTTL,
-                redis: Controller.lowTTL,
+                memory: highTTL,
+                redis: lowTTL,
             }
         })
         async get_redisDiesFirst(resourceId: string) {
@@ -79,7 +78,7 @@ describe('Multilevel caching', () => {
         // First call to put the value on cache
         await controller.get_memoryDiesFirst(resourceId);
 
-        await new Promise((resolve) => setTimeout(resolve, 1.1 * Controller.lowTTL));
+        await new Promise((resolve) => setTimeout(resolve, 1.1 * lowTTL));
     
         // Second call to get value
         const result = await controller.get_memoryDiesFirst(resourceId);
@@ -95,7 +94,7 @@ describe('Multilevel caching', () => {
         // First call to put the value on cache
         await controller.get_redisDiesFirst(resourceId);
 
-        await new Promise((resolve) => setTimeout(resolve, 1.1 * Controller.lowTTL));
+        await new Promise((resolve) => setTimeout(resolve, 1.1 * lowTTL));
         // Second call to get value
         const result = await controller.get_redisDiesFirst(resourceId);
         // Value is returned from memory, so should be the actual value being returned by controller
